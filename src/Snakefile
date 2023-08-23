@@ -1,0 +1,28 @@
+import os
+
+from snakemake.utils import min_version
+
+min_version("7.32")
+
+secrets = {'LRIS_KEY'}
+for secret in secrets:
+    envvars: secret
+
+LOGS_DIR = 'logs'
+
+include: "rules/lcdb.smk"
+include: "rules/linz.smk"
+include: "rules/worldpop.smk"
+include: "rules/jrc.smk"
+include: "rules/eog.smk"
+
+rule all:
+    input:
+        expand(CROPLAND, year=LCDB_YEARS),
+        expand(PASTURE, year=LCDB_YEARS),
+        expand(RAIL, year=LINZ_YEARS),
+        expand(ROADS, year=LINZ_YEARS),
+        expand(WORLDPOP_FOOTPRINT_NZ, year=WORLDPOP_YEARS),
+        # expand(GHS, year=JEODPP_YEARS),
+        # expand(VNL_FOOTPRINT, year=VNL_YEARS)
+
