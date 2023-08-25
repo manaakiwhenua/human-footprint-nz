@@ -1,7 +1,7 @@
 # https://eogdata.mines.edu/products/vnl/
 
 VNL = 'data/downloads/vnl/{year}/VNL_v21_npp_2012_global_vcmslcfg_c202205302300.median_masked.tif'
-VNL_FOOTPRINT = 'data/downloads/vnl/{year}/vnl-footprint-{year}.tif'
+VNL_FOOTPRINT = 'data/footprints/vnl/{year}/vnl-footprint-{year}.tif'
 
 VNL_URLS = {
     2022: 'https://eogdata.mines.edu/nighttime_light/annual/v22/2022/VNL_v22_npp-j01_2022_global_vcmslcfg_c202303062300.median_masked.dat.tif.gz',
@@ -20,6 +20,9 @@ VNL_URLS = {
 VNL_YEARS = list(map(str, VNL_URLS.keys()))
 
 # Median monthly radiance, nW/cm^2/sr
+# NB output is scaled 0-255 (Byte) over New Zealand to make computation of deciles computationally easier for the Human Footprint index, 
+# and therefore is not actually in units of nW/cm^2/sr, but the intermediate data is retained if needed.
+# Since Human Footpring mapping is using VNL data for the computation of deciles, this conversion does not result in lost information. 
 rule download_project_clip_vnl:
     output: VNL
     params:
@@ -29,31 +32,28 @@ rule download_project_clip_vnl:
         '''
         mkdir -p $(dirname {output}) && \
         curl -o - {params.url} | gunzip > {output}.4326.tif && \
-        gdalwarp -t_srs EPSG:3851 \
+        gdal_edit.py -stats {output}.4326.tif && \
+        gdalwarp -t_srs EPSG:3851 -t_coord_epoch {wildcards.year}.0 \
         -r near -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        -co COMPRESS=ZSTD -co PREDICTOR=2 \
+        -co COMPRESS=ZSTD -co PREDICTOR=3 \
         -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
         -co NUM_THREADS=ALL_CPUS -overwrite \
         -multi -wo NUM_THREADS=ALL_CPUS \
-        {output}.4326.tif {output} \
-        && gdal_edit.py -stats {output}
+        {output}.4326.tif {output}.unscaled.tif \
+        && gdal_edit.py -stats {output}.unscaled.tif \
+        && gdal_translate -ot Byte -scale {output}.unscaled.tif {output} \
+        && gdal_edit.py -stats {output} \
         '''
 
-# TODO work out a method of classifying as ten equal quantiles (excluding 0 or nan in the computation of quantile)
-# NB quantile can be efficiently computed by loading the array, flattening, excluding nan and 0, and sorting
-#   The issue I'm having is computing the mask in numpy to apply the correct integer value...
-#       Python kills the process before it will compute the array
-# Probably what needs to be done is to
-# a) calculate the quantile thresholds as described
-# b) loop and update over windows of 512x512
-# rule footprint_vnl:
-#     input: VNL
-#     output: VNL_FOOTPRINT
-#     conda: '../envs/gdal.yml'
-#     run:
-#         '''
-#         import numpy as np
-#         import rasterio as rio
-#         ds = rio.open(input[0])
-#         data = ds.read()
-#         ''''
+# NB perform "gdalinfo -hist {output}" to verify that the output is in 10 approximately equal bins (excluding 0).
+# The result won't have exactly bins: values stradling the edge aren't distributed evenly between boundary values,
+# Yet, for 2020, each class 1-10 has between 131,825 to 131,859 pixels, and the remaining 1,004,044,827 pixels are 0.
+rule footprint_vnl:
+    input: VNL
+    output: VNL_FOOTPRINT
+    log: f"{LOGS_DIR}/footprint_vnl_{{year}}.log"
+    threads: 5
+    params:
+        logLevel='DEBUG'
+    conda: '../envs/rasterio.yml'
+    script: '../scripts/decile.py'

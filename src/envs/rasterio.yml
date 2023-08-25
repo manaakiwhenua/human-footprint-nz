@@ -1,0 +1,6 @@
+channels:
+  - conda-forge
+channel_priority: strict
+dependencies:
+  - gdal>=3.7.0
+  - rasterio==1.3.*

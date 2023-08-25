@@ -1,4 +1,5 @@
 import os
+import string
 
 from snakemake.utils import min_version
 
@@ -18,11 +19,35 @@ include: "rules/eog.smk"
 
 rule all:
     input:
-        expand(CROPLAND, year=LCDB_YEARS),
-        expand(PASTURE, year=LCDB_YEARS),
-        expand(RAIL, year=LINZ_YEARS),
-        expand(ROADS, year=LINZ_YEARS),
-        expand(WORLDPOP_FOOTPRINT_NZ, year=WORLDPOP_YEARS),
+        # expand(RAIL, year=LINZ_YEARS),
+        # expand(ROADS, year=LINZ_YEARS),
+        # expand(WORLDPOP_FOOTPRINT_NZ, year=WORLDPOP_YEARS),
         # expand(GHS, year=JEODPP_YEARS),
         # expand(VNL_FOOTPRINT, year=VNL_YEARS)
+        expand('data/footprints/output/human_footprint_nz-{year}.tif', year=['2018'])
 
+
+# TODO borked?
+# TODO nan needs to be treated as 0
+rule summation:
+    input: WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT
+    output: 'data/footprints/output/human_footprint_nz-{year}.tif'
+    conda: './envs/gdal.yml'
+    params:
+        # input_layers=lambda wildcards, input: ' '.join(input),
+        input_layers_calc=lambda wildcards, input: ' '.join(map(lambda x: f'-{x[0]} {x[1]}.vrt', zip(list(string.ascii_uppercase[:len(input)]), input))),
+        input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[:len(input)])
+        # input_calc=lambda wildcards, input: 'numpy.nansum([' + ','.join(list(string.ascii_uppercase)[:len(input)]) + '])'
+        # input_calc=lambda wildcards, input: 'numpy.sum([' + ','.join(list(string.ascii_uppercase)[:len(input)]) + '])'
+    shell:
+        '''
+        mkdir -p $(dirname {output}) && \
+        for input_file in {input}; do
+            gdal_translate -of VRT $input_file $input_file.vrt -a_nodata 255
+        done; \
+        gdal_calc.py {params.input_layers_calc} --calc="{params.input_calc}" --extent=union --outfile {output} \
+        --co COMPRESS=ZSTD --co PREDICTOR=3 \
+        --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
+        --co NUM_THREADS=ALL_CPUS --overwrite \
+        && gdal_edit.py -stats {output}
+        '''

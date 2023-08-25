@@ -38,8 +38,8 @@ rule reproject_worldpop:
     log: f"{LOGS_DIR}/reproject_worldpop{{year}}.log"
     shell:
         '''
-        gdalwarp -t_srs EPSG:3851 -r sum \
-        -tr 100 100 \
+        gdalwarp -t_srs EPSG:3851 -t_coord_epoch {wildcards.year}.0 \
+        -r sum -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
         -co COMPRESS=ZSTD -co PREDICTOR=2 \
         -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
         -co NUM_THREADS=ALL_CPUS -overwrite \
@@ -52,6 +52,7 @@ rule reproject_worldpop:
 # 10 | where people per pixel (ppp) is greater than or equal to 10
 # 3.333 * log(people/km2 + 1) | where ppp is greater than 0 and less than 10
 # 0 | otherwise
+# TODO -unsetnodata in gdal_edit.py
 rule footprint_worldpop:
     input: WORLDPOP_NZ
     output: WORLDPOP_FOOTPRINT_NZ
@@ -60,9 +61,9 @@ rule footprint_worldpop:
     shell:
         '''
         mkdir -p $(dirname {output}) && \
-        gdal_calc.py --outfile={output} --calc="0*(A==0)+10*(A>=10)+3.333*log(A*100+1)" -A {input} \
-        --creation-option COMPRESS=ZSTD --creation-option PREDICTOR=2 \
-        --creation-option TILED=YES --creation-option BLOCKXSIZE=512 --creation-option BLOCKYSIZE=512 \
-        --creation-option NUM_THREADS=ALL_CPUS --overwrite \
+        gdal_calc.py --outfile={output} --calc="0*(A==0)+10*(A>=10)+((A<10)&(A>0))*(3.333*log10(A*100+1))" -A {input} \
+        --co COMPRESS=ZSTD --co PREDICTOR=2 \
+        --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
+        --co NUM_THREADS=ALL_CPUS --overwrite \
         && gdal_edit.py -stats {output}
         '''

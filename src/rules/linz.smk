@@ -65,8 +65,10 @@ def get_kart_rail_sha(year: int, layer: str) -> str:
 MAINLAND_ROADS = "data/downloads/roads/mainland/{year}/roads-mainland-{year}.gpkg"
 CHATHAMS_ROADS = "data/downloads/roads/chathams/{year}/roads-chathams-{year}.gpkg"
 ROADS = "data/downloads/roads/{year}/roads-{year}.gpkg"
+ROADS_RASTER = "data/downloads/roads/{year}/roads-{year}.tif"
 
 RAIL = "data/downloads/rail/{year}/rail-{year}.gpkg"
+RAIL_RASTER = "data/downloads/rail/{year}/rail-{year}.tif"
 
 rule checkout_roads_mainland:
     output: MAINLAND_ROADS
@@ -102,7 +104,9 @@ rule merge_roads:
         nln='roads'
     shell:
         '''
-        mkdir -p $(dirname {output}) && ogrmerge.py -o {output} {input} -f GPKG -single -nln {params.nln} -overwrite_ds -t_srs EPSG:3851 -progress   
+        mkdir -p $(dirname {output}) && \
+        ogrmerge.py -o {output} {input} -f GPKG -single -nln {params.nln} -overwrite_ds \
+        -t_srs EPSG:3851 -progress   
         '''
 
 use rule checkout_roads_mainland as checkout_rail_mainland with:
@@ -112,3 +116,19 @@ use rule checkout_roads_mainland as checkout_rail_mainland with:
         layer='layer-50319',
         workingcopy=lambda wildcards: f'data/clones/rail/mainland/{wildcards.year}',
         kart_hash=lambda wildcards: get_kart_rail_sha(int(wildcards.year), 'layer-50319')
+
+rule roads_rasterisation:
+    input: ROADS
+    output: ROADS_RASTER
+    log: f"{LOGS_DIR}/roads_rasterisation_{{year}}.log"
+    conda: '../whitebox.yml'
+    shell:
+        '''
+        mkdir -p $(dirname {output}) && \
+        whitebox_tools --help
+        '''
+
+use rule roads_rasterisation as rail_rasterisation with:
+    input: RAIL
+    output: RAIL_RASTER
+    log: f"{LOGS_DIR}/rail_rasterisation_{{year}}.log"

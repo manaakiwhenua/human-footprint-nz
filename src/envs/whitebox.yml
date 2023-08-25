@@ -1,0 +1,6 @@
+channels:
+  - conda-forge
+channel_priority: strict
+dependencies:
+  - gdal>=3.7.0
+  - whitebox_tools==2.3.*
