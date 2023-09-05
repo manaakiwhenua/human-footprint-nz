@@ -1,3 +1,18 @@
+# Human Footprint NZ
+
+Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zealand
+
+## Human pressure variables implementation status
+
+- [x] Built environments
+- [x] Population denisty
+- [x] Nighttime lights
+- [x] Crop land
+- [x] Pasture land
+- [x] Roads
+- [x] Railways
+- [x] Navigable waterways
+
 ## Reproduction
 
 ### Secrets
