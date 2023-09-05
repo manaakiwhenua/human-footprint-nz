@@ -11,7 +11,7 @@ Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zea
 - [x] Pasture land
 - [x] Roads
 - [x] Railways
-- [x] Navigable waterways
+- [ ] Navigable waterways
 
 ## Reproduction
 
