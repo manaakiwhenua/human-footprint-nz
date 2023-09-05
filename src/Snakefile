@@ -12,10 +12,10 @@ for secret in secrets:
 LOGS_DIR = 'logs'
 
 include: "rules/lcdb.smk"
-include: "rules/linz.smk"
 include: "rules/worldpop.smk"
 include: "rules/jrc.smk"
 include: "rules/eog.smk"
+include: "rules/linz.smk"
 
 rule all:
     input:
@@ -30,7 +30,7 @@ rule all:
 # TODO borked?
 # TODO nan needs to be treated as 0
 rule summation:
-    input: WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT
+    input: WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT
     output: 'data/footprints/output/human_footprint_nz-{year}.tif'
     conda: './envs/gdal.yml'
     params:

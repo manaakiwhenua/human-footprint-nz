@@ -2,3 +2,4 @@ secrets.env
 data
 logs
 .snakemake
+*.qgz

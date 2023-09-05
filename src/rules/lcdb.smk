@@ -54,20 +54,22 @@ rule burn_cropland:
         year=f'({"|".join(LCDB_YEARS)})'
     conda: '../envs/gdal.yml'
     log: f"{LOGS_DIR}/burn_cropland_{{year}}.log"
+    params:
+        tmp='/media/lawr/TRANSCEND/tmp' # TODO parameterise
     shell:
         '''
-        mkdir -p $(dirname /tmp/lcdb/{output}) && \
+        mkdir -p $(dirname {params.tmp}/lcdb/{output}) && \
         gdal_rasterize -b -burn 4 -of GTiff -ot Byte \
         -a_nodata 0 -init 0 \
         -tr 20 20 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        {input} /tmp/lcdb/{output} \
+        {input} {params.tmp}//lcdb/{output} \
         && gdalwarp -r sum -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
         -co COMPRESS=ZSTD -co PREDICTOR=2 \
         -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
         -co NUM_THREADS=ALL_CPUS -overwrite \
         -multi -wo NUM_THREADS=ALL_CPUS \
         -dstnodata 0 \
-        -overwrite /tmp/lcdb/{output} {output} \
+        -overwrite {params.tmp}//lcdb/{output} {output} \
         && gdal_edit.py -stats -unsetnodata -a_srs EPSG:3851 {output}
         '''
 

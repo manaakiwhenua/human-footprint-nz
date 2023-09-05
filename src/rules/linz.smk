@@ -45,30 +45,33 @@ RAIL_SHAS = {
 
 LINZ_YEARS = list(map(str, range(2012, 2024)))
 
-def get_kart_roads_sha(year: int, layer: str) -> str:
-    available_years = ROADS_SHAS[layer].keys()
+def get_kart_sha(year:int, layer: str, f: callable, d: dict) -> str:
+    available_years = d[layer].keys()
     year = max(min(available_years), year) # Clamp to lower end
     try:
-        return ROADS_SHAS[layer][year]
+        return d[layer][year]
     except KeyError:
-        return get_kart_roads_sha(year-1, layer) # Try previous year
+        return f(year-1, layer) # Try previous year
 
-# TODO DRY
+def get_kart_roads_sha(year: int, layer: str) -> str:
+    return get_kart_sha(year, layer, get_kart_roads_sha, ROADS_SHAS)
+
 def get_kart_rail_sha(year: int, layer: str) -> str:
-    available_years = RAIL_SHAS[layer].keys()
-    year = max(min(available_years), year) # Clamp to lower end
-    try:
-        return RAIL_SHAS[layer][year]
-    except KeyError:
-        return get_kart_rail_sha(year-1, layer) # Try previous year
+    return get_kart_sha(year, layer, get_kart_rail_sha, RAIL_SHAS)
+
+TEMPLATE_RASTER = "data/downloads/template.tif"
 
 MAINLAND_ROADS = "data/downloads/roads/mainland/{year}/roads-mainland-{year}.gpkg"
 CHATHAMS_ROADS = "data/downloads/roads/chathams/{year}/roads-chathams-{year}.gpkg"
-ROADS = "data/downloads/roads/{year}/roads-{year}.gpkg"
+ROADS = "data/downloads/roads/{year}/roads-{year}.shp" # SHP due to WhiteBox tools limitation https://www.whiteboxgeo.com/manual/wbt_book/supported_formats.html#vector-formats
 ROADS_RASTER = "data/downloads/roads/{year}/roads-{year}.tif"
+ROADS_RASTER_DISTANCE = "data/downloads/roads/{year}/roads-{year}-euclidean_distance.tif"
+ROADS_FOOTPRINT = "data/footprints/roads/roads-{year}.tif"
 
-RAIL = "data/downloads/rail/{year}/rail-{year}.gpkg"
+RAIL = "data/downloads/rail/{year}/rail-{year}.shp" # SHP due to WhiteBox tools limitation https://www.whiteboxgeo.com/manual/wbt_book/supported_formats.html#vector-formats
 RAIL_RASTER = "data/downloads/rail/{year}/rail-{year}.tif"
+RAIL_RASTER_DISTANCE = "data/downloads/rail/{year}/rail-{year}-euclidean_distance.tif"
+RAIL_FOOTPRINT = "data/footprints/rail/rail-{year}.tif"
 
 rule checkout_roads_mainland:
     output: MAINLAND_ROADS
@@ -82,7 +85,7 @@ rule checkout_roads_mainland:
         kart_hash=lambda wildcards: get_kart_roads_sha(int(wildcards.year), 'layer-50329')
     shell:
         '''
-        rm -rf {output} && rm -rf {params.layer} \
+        rm -rf {output} && rm -rf {params.workingcopy} \
         && kart clone --workingcopy-location {output} --progress kart@data.koordinates.com:land-information-new-zealand/{params.layer} {params.workingcopy} \
         && cd {params.workingcopy} && kart checkout {params.kart_hash} && cd -
         '''
@@ -105,30 +108,86 @@ rule merge_roads:
     shell:
         '''
         mkdir -p $(dirname {output}) && \
-        ogrmerge.py -o {output} {input} -f GPKG -single -nln {params.nln} -overwrite_ds \
-        -t_srs EPSG:3851 -progress   
+        ogrmerge.py -o {output} {input} -f "ESRI Shapefile" -single -nln {params.nln} -overwrite_ds -t_srs EPSG:3851 -progress && \
+        ogrinfo {output} -sql "CREATE SPATIAL INDEX ON $(basename -s .shp {output})"
+        ogrinfo $(dirname {output})/$(basename -s .shp {output}).dbf -sql "RESIZE $(basename -s .shp {output})"
         '''
 
-use rule checkout_roads_mainland as checkout_rail_mainland with:
+rule checkout_rail:
     output: RAIL
-    log: f"{LOGS_DIR}/checkout_rail_mainland{{year}}.log"
+    wildcard_constraints:
+        year=f'({"|".join(LINZ_YEARS)})'
+    conda: '../envs/gdal.yml'
+    log: f"{LOGS_DIR}/checkout_rail_{{year}}.log"
     params:
         layer='layer-50319',
-        workingcopy=lambda wildcards: f'data/clones/rail/mainland/{wildcards.year}',
+        workingcopy=lambda wildcards: f'data/clones/rail/{wildcards.year}',
         kart_hash=lambda wildcards: get_kart_rail_sha(int(wildcards.year), 'layer-50319')
+    shell:
+        '''
+        rm -rf $(dirname {output})/$(basename -s .shp {output}).gpkg && rm -rf {params.workingcopy} \
+        && kart clone --workingcopy-location $(dirname {output})/$(basename -s .shp {output}).gpkg --progress kart@data.koordinates.com:land-information-new-zealand/{params.layer} {params.workingcopy} \
+        && cd {params.workingcopy} && kart checkout {params.kart_hash} && cd - \
+        && ogr2ogr -t_srs EPSG:3851 {output} $(dirname {output})/$(basename -s .shp {output}).gpkg
+        '''
 
 rule roads_rasterisation:
-    input: ROADS
+    input:
+        lines=ROADS,
+        base=WORLDPOP_NZ
     output: ROADS_RASTER
     log: f"{LOGS_DIR}/roads_rasterisation_{{year}}.log"
-    conda: '../whitebox.yml'
+    conda: '../envs/whitebox.yml'
     shell:
         '''
         mkdir -p $(dirname {output}) && \
-        whitebox_tools --help
+        whitebox_tools -r=VectorLinesToRaster -v -wd="$(dirname {input.lines})" -i=$(basename {input.lines}) -o={output} -base={input.base}
         '''
 
 use rule roads_rasterisation as rail_rasterisation with:
-    input: RAIL
+    input:
+        lines=RAIL,
+        base=WORLDPOP_NZ
     output: RAIL_RASTER
     log: f"{LOGS_DIR}/rail_rasterisation_{{year}}.log"
+
+rule roads_euclidean_distance:
+    input: ROADS_RASTER
+    output: ROADS_RASTER_DISTANCE
+    log: f"{LOGS_DIR}/roads_euclidean_distance_{{year}}.log"
+    conda: '../envs/whitebox.yml'
+    shell:
+        '''
+        mkdir -p $(dirname {output}) && \
+        whitebox_tools -r=EuclideanDistance -v -wd="$(dirname {input})" -i=$(basename {input}) -o={output}
+        '''
+
+use rule roads_euclidean_distance as rail_euclidean_distance with:
+    input: RAIL_RASTER
+    output: RAIL_RASTER_DISTANCE
+    log: f"{LOGS_DIR}/rail_euclidean_distance_{{year}}.log"
+
+rule roads_footptint:
+    input: ROADS_RASTER_DISTANCE
+    output: ROADS_FOOTPRINT
+    log: f"{LOGS_DIR}/roads_foorptint_{{year}}.log"
+    conda: '../envs/whitebox.yml'
+    params:
+        calc='(A<=500)*8+((A>500)&(A<15000))*(3.75*exp(-1.0*((A/1000.0)-1.0))+0.25)+(A>=15000)*0'
+    shell:
+        '''
+        mkdir -p $(dirname {output}) && \
+        gdal_calc.py --outfile={output} --calc="{params.calc}" -A {input} \
+        --type Float32 \
+        --co COMPRESS=ZSTD --co PREDICTOR=3 \
+        --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
+        --co NUM_THREADS=ALL_CPUS --overwrite \
+        && gdal_edit.py -stats {output}
+        '''
+
+use rule roads_footptint as rail_footprint with:
+    input: RAIL_RASTER_DISTANCE
+    output: RAIL_FOOTPRINT
+    log: f"{LOGS_DIR}/rail_foorptint_{{year}}.log"
+    params:
+        calc='(A<=500)*8+(A>=500)*0'

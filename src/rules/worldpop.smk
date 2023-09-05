@@ -40,7 +40,7 @@ rule reproject_worldpop:
         '''
         gdalwarp -t_srs EPSG:3851 -t_coord_epoch {wildcards.year}.0 \
         -r sum -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        -co COMPRESS=ZSTD -co PREDICTOR=2 \
+        -co COMPRESS=DEFLATE -co PREDICTOR=2 \
         -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
         -co NUM_THREADS=ALL_CPUS -overwrite \
         {input} {output} \

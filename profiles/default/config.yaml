@@ -1,0 +1,4 @@
+use-conda: true
+rerun-incomplete: true
+jobs: 2
+printshellcmds: true
