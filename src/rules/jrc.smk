@@ -29,7 +29,6 @@ def get_jeodpp_url(year: int) -> list[str]:
 
 JEODPP_URLS = {k: v for k, v in zip(JEODPP_YEARS, map(get_jeodpp_url, JEODPP_YEARS))}
 
-# FIXME Snakemake thinks this rules params change every run
 rule download_unzip_merge_jeodpp:
     output: GHS
     params:

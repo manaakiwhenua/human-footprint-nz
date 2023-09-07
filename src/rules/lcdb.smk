@@ -62,14 +62,14 @@ rule burn_cropland:
         gdal_rasterize -b -burn 4 -of GTiff -ot Byte \
         -a_nodata 0 -init 0 \
         -tr 20 20 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        {input} {params.tmp}//lcdb/{output} \
+        {input} {params.tmp}/lcdb/{output} \
         && gdalwarp -r sum -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
         -co COMPRESS=ZSTD -co PREDICTOR=2 \
         -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
         -co NUM_THREADS=ALL_CPUS -overwrite \
         -multi -wo NUM_THREADS=ALL_CPUS \
         -dstnodata 0 \
-        -overwrite {params.tmp}//lcdb/{output} {output} \
+        -overwrite {params.tmp}/lcdb/{output} {output} \
         && gdal_edit.py -stats -unsetnodata -a_srs EPSG:3851 {output}
         '''
 

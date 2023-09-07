@@ -132,22 +132,21 @@ rule checkout_rail:
         '''
 
 rule roads_rasterisation:
-    input:
-        lines=ROADS,
-        base=WORLDPOP_NZ
+    input: ROADS,
     output: ROADS_RASTER
     log: f"{LOGS_DIR}/roads_rasterisation_{{year}}.log"
-    conda: '../envs/whitebox.yml'
+    conda: '../envs/gdal.yml'
     shell:
         '''
         mkdir -p $(dirname {output}) && \
-        whitebox_tools -r=VectorLinesToRaster -v -wd="$(dirname {input.lines})" -i=$(basename {input.lines}) -o={output} -base={input.base}
+        gdal_rasterize -b -burn 1 -of GTiff -ot Byte -init 0 \
+        -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
+        {input} {output} \
+        && gdal_edit.py -stats -a_srs EPSG:3851 {output}
         '''
 
 use rule roads_rasterisation as rail_rasterisation with:
-    input:
-        lines=RAIL,
-        base=WORLDPOP_NZ
+    input: RAIL
     output: RAIL_RASTER
     log: f"{LOGS_DIR}/rail_rasterisation_{{year}}.log"
 
@@ -167,10 +166,10 @@ use rule roads_euclidean_distance as rail_euclidean_distance with:
     output: RAIL_RASTER_DISTANCE
     log: f"{LOGS_DIR}/rail_euclidean_distance_{{year}}.log"
 
-rule roads_footptint:
+rule roads_footprint:
     input: ROADS_RASTER_DISTANCE
     output: ROADS_FOOTPRINT
-    log: f"{LOGS_DIR}/roads_foorptint_{{year}}.log"
+    log: f"{LOGS_DIR}/roads_footprint_{{year}}.log"
     conda: '../envs/whitebox.yml'
     params:
         calc='(A<=500)*8+((A>500)&(A<15000))*(3.75*exp(-1.0*((A/1000.0)-1.0))+0.25)+(A>=15000)*0'
@@ -185,9 +184,9 @@ rule roads_footptint:
         && gdal_edit.py -stats {output}
         '''
 
-use rule roads_footptint as rail_footprint with:
+use rule roads_footprint as rail_footprint with:
     input: RAIL_RASTER_DISTANCE
     output: RAIL_FOOTPRINT
-    log: f"{LOGS_DIR}/rail_foorptint_{{year}}.log"
+    log: f"{LOGS_DIR}/rail_footprint_{{year}}.log"
     params:
         calc='(A<=500)*8+(A>=500)*0'

@@ -11,11 +11,15 @@ for secret in secrets:
 
 LOGS_DIR = 'logs'
 
+NZ_COAST_VECTOR = 'data/downloads/nz-coastlines-and-islands-polygons-topo-1-50k.gpkg'
+NZ_COAST_RASTER = 'data/downloads/nz-coastlines-and-islands-polygons-topo-1-50k.tif'
+
 include: "rules/lcdb.smk"
 include: "rules/worldpop.smk"
 include: "rules/jrc.smk"
 include: "rules/eog.smk"
 include: "rules/linz.smk"
+include: "rules/waterways.smk"
 
 rule all:
     input:
@@ -27,16 +31,54 @@ rule all:
         expand('data/footprints/output/human_footprint_nz-{year}.tif', year=['2018'])
 
 
-# TODO borked?
-# TODO nan needs to be treated as 0
+rule download_nz_coastlines_and_islands_polygon:
+    output: NZ_COAST_VECTOR
+    threads: 2
+    conda: './envs/gdal.yml'
+    log: f"{LOGS_DIR}/download_nz_coastlines_and_islands_polygon.log"
+    params:
+        host="https://data.linz.govt.nz",
+        key=lambda wc: os.environ.get('LRIS_KEY'),
+        layer="layer-51153", # NZ Coastlines and Islands Polygons (Topo 1:50k)
+        nln="nz-coastline",
+        nlt="multipolygon",
+        geom_var="geom"
+    shell:
+        '''
+        mkdir -p $(dirname {output}) && \
+        ogr2ogr --config GDAL_HTTP_UNSAFESSL YES -f GPKG -t_srs EPSG:3851 \
+        {output} WFS:\"{params.host}/services;key={params.key}/wfs/{params.layer}\" {params.layer} -nln {params.nln} \
+        -nlt {params.nlt} -nlt PROMOTE_TO_MULTI -overwrite -lco GEOMETRY_NAME={params.geom_var} -unsetFid \
+        '''
+
+# Binary mask 1 = land (including rivers, lakes), 0 = not land
+# NB "all touched" method
+rule rasterise_nz_coastlines_and_islands_polygon:
+    input: NZ_COAST_VECTOR
+    output: NZ_COAST_RASTER
+    conda: './envs/gdal.yml'
+    log: f"{LOGS_DIR}/rasterise_nz_coastlines_and_islands_polygon.log"
+    shell:
+        '''
+        rm -rf {output} && mkdir -p $(dirname {output}) && \
+        gdal_rasterize -b -burn 1 -of GTiff -ot Byte \
+        -a_nodata 0 -init 0 -at \
+        -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
+        -co COMPRESS=ZSTD -co PREDICTOR=2 \
+        -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
+        -co NUM_THREADS=ALL_CPUS \
+        {input} {output} \
+        && gdal_edit.py -stats -a_srs EPSG:3851 {output}
+        '''
+
 rule summation:
-    input: WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT
+    input: NZ_COAST_RASTER, WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT
     output: 'data/footprints/output/human_footprint_nz-{year}.tif'
     conda: './envs/gdal.yml'
     params:
         # input_layers=lambda wildcards, input: ' '.join(input),
         input_layers_calc=lambda wildcards, input: ' '.join(map(lambda x: f'-{x[0]} {x[1]}.vrt', zip(list(string.ascii_uppercase[:len(input)]), input))),
-        input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[:len(input)])
+        input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)])
         # input_calc=lambda wildcards, input: 'numpy.nansum([' + ','.join(list(string.ascii_uppercase)[:len(input)]) + '])'
         # input_calc=lambda wildcards, input: 'numpy.sum([' + ','.join(list(string.ascii_uppercase)[:len(input)]) + '])'
     shell:
@@ -45,9 +87,10 @@ rule summation:
         for input_file in {input}; do
             gdal_translate -of VRT $input_file $input_file.vrt -a_nodata 255
         done; \
-        gdal_calc.py {params.input_layers_calc} --calc="{params.input_calc}" --extent=union --outfile {output} \
+        gdal_calc.py {params.input_layers_calc} --calc="(A==0)*-1+(A==1)*({params.input_calc})" --extent=union --outfile {output} \
         --co COMPRESS=ZSTD --co PREDICTOR=3 \
         --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
         --co NUM_THREADS=ALL_CPUS --overwrite \
+        --NoDataValue=-1 \
         && gdal_edit.py -stats {output}
         '''
