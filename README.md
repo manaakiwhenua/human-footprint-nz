@@ -13,6 +13,8 @@ Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zea
 - [x] Railways
 - [ ] Navigable waterways
 
+![Human Footprint Index for 2018](<HFI-2018.png>)
+
 ## Visual workflow summary
 
 ![Generated with: `set -o allexport && source secrets.env && set +o allexport && snakemake --snakefile ./src/Snakefile --profile profiles/default -f all --rulegraph | dot -Tpng > rulegraph.png`](<rulegraph.png>)
@@ -47,13 +49,15 @@ These keys are API keys for Koordinates-platform Web Feature Service APIs; they 
 
     - The instructions currently lack information about adding a public key to be able to clone Kart repositories. Go to https://id.koordinates.com/ssh-keys/ and click "Add Public Key" to add one. If you don't have an SSH key, work through [Github documentation](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account) until you do, as the idea is identical, except that you will add your public key to Koordinates rather than to Github.
 
-1. [git-lfs](https://git-lfs.com/), due to dependence on one static layer that cannot be downloaded programmatically.
+1. The workflow depends on [git-lfs](https://git-lfs.com/), due to dependence on static rivers data that cannot be downloaded programmatically.
+
+1. The workflow depends on [Docker](https://www.docker.com/) (for access to [GRASS GIS](https://grass.osgeo.org/)).
 
 _This workflow has only been run on Linux._
 
 ### Pre-existing river data
 
-Data for median flow (and wetted width at median flow) for all NZ rivers (REC) were manually downloaded from https://shiny.niwa.co.nz/nzrivermaps/ on 2023-09-07. It is not known whether it is possible to download these data programmatically. Note that these data only exist for the North, South, and Stewart Islands.
+Data for median flow (and wetted width at median flow) for all NZ rivers (REC) were manually downloaded from https://shiny.niwa.co.nz/nzrivermaps/ on 2023-09-07. It does not appear possible to download these data programmatically, as the web interface relies on a session token. Note that these data only exist for the North, South, and Stewart Islands.
 
 ![Image of download parameters](<static/Screenshot from 2023-09-07 14-47-23.png>)
 

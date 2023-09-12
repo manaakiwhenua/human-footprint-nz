@@ -205,15 +205,18 @@ rule mavigable_water_cost_distance_grass:
         mapset="PERMANENT",
         grass_exe="grass grassdata/navigable_water/PERMANENT/ --exec"
     shell: '''
-        rm -rf {params.grassdata} && rm -f {log}
+        rm -rf {params.grassdata}
+        rm -f {log}
+        rm -f {output}
+        rm -f /tmp/$(basename {output})
         (
             grass -c {input.cost} -e {params.grassdata} && \
             {params.grass_exe} r.in.gdal -e -k --verbose --overwrite input="{input.cost}" output="$(basename -s .tif {input.cost})" memory=2048 && \
             {params.grass_exe} r.in.gdal -k --verbose --overwrite input="{input.source}" output="$(basename -s .tif {input.source})" memory=2048 && \
             {params.grass_exe} r.cost -k -n input=$(basename -s .tif {input.cost}) start_raster=$(basename -s .tif {input.source}) output=$(basename -s .tif {output}) max_cost=800 memory=14000 && \
-            {params.grass_exe} r.out.gdal input=$(basename -s .tif {output}) output=/tmp/$(basename {output})
+            {params.grass_exe} r.out.gdal -c input=$(basename -s .tif {output}) output=/tmp/$(basename {output})
         ) 2>&1 | tee {log}
-        gdalwarp /tmp/$(basename {output}) {output} -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54
+        gdalwarp /tmp/$(basename {output}) {output} -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 -overwrite
     '''
 
 
@@ -226,12 +229,12 @@ rule navigable_water_euclidean_distance:
     conda: '../envs/gdal.yml'
     shell: '''
         mkdir -p $(dirname {output})
-        gdal_proximity.py {input.cost_distance} /tmp/$(basename {output}) -of GTiff -ot Float32 -maxdist 15000 -use_input_nodata NO -distunits GEO \
-            -co COMPRESS=LZW -co PREDICTOR=2
-        gdal_calc.py --outfile={output} -A /tmp/$(basename {output}) -B {input.source} --calc="A+B" --NoDataValue=0 \
-            --co COMPRESS=LZW --co PREDICTOR=3 --type=Float32 \
+        gdal_calc.py --outfile=/tmp/$(basename {output}) -A {input.cost_distance} -B {input.source} --calc="where(isnan(A+B),0,1)" --hideNoData --NoDataValue=0 \
+            --co COMPRESS=LZW --co PREDICTOR=2 --type=Byte \
             --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
             --co NUM_THREADS=ALL_CPUS --overwrite
+        gdal_proximity.py /tmp/$(basename {output}) {output} -of GTiff -ot Float32 -maxdist 15000 -use_input_nodata NO -distunits GEO \
+            -co COMPRESS=LZW -co PREDICTOR=2
     '''
 
 rule navigable_water_footprint:

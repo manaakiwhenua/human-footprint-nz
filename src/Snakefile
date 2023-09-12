@@ -23,11 +23,6 @@ include: "rules/waterways.smk"
 
 rule all:
     input:
-        # expand(RAIL, year=LINZ_YEARS),
-        # expand(ROADS, year=LINZ_YEARS),
-        # expand(WORLDPOP_FOOTPRINT_NZ, year=WORLDPOP_YEARS),
-        # expand(GHS, year=JEODPP_YEARS),
-        # expand(VNL_FOOTPRINT, year=VNL_YEARS)
         expand('data/footprints/output/human_footprint_nz-{year}.tif', year=['2018'])
 
 
@@ -76,11 +71,8 @@ rule summation:
     output: 'data/footprints/output/human_footprint_nz-{year}.tif'
     conda: './envs/gdal.yml'
     params:
-        # input_layers=lambda wildcards, input: ' '.join(input),
         input_layers_calc=lambda wildcards, input: ' '.join(map(lambda x: f'-{x[0]} {x[1]}.vrt', zip(list(string.ascii_uppercase[:len(input)]), input))),
         input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)])
-        # input_calc=lambda wildcards, input: 'numpy.nansum([' + ','.join(list(string.ascii_uppercase)[:len(input)]) + '])'
-        # input_calc=lambda wildcards, input: 'numpy.sum([' + ','.join(list(string.ascii_uppercase)[:len(input)]) + '])'
     shell:
         '''
         mkdir -p $(dirname {output}) && \
