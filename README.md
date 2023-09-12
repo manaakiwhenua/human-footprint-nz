@@ -11,9 +11,12 @@ Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zea
 - [x] Pasture land
 - [x] Roads
 - [x] Railways
-- [ ] Navigable waterways
+- [x] Navigable waterways
 
 ![Human Footprint Index for 2018](<HFI-2018.png>)
+
+![Components of the Human Footprint Index for 2018](<9-square.png>)
+
 
 ## Visual workflow summary
 
