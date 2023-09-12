@@ -28,6 +28,8 @@ rule download_project_clip_vnl:
     params:
         url=lambda wildcards: VNL_URLS[int(wildcards.year)]
     conda: '../envs/gdal.yml'
+    wildcard_constraints:
+        year=f'({"|".join(VNL_YEARS)})'
     shell:
         '''
         mkdir -p $(dirname {output}) && \
@@ -51,6 +53,8 @@ rule download_project_clip_vnl:
 rule footprint_vnl:
     input: VNL
     output: VNL_FOOTPRINT
+    wildcard_constraints:
+        year=f'({"|".join(VNL_YEARS)})'
     log: f"{LOGS_DIR}/footprint_vnl_{{year}}.log"
     threads: 5
     params:

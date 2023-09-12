@@ -72,7 +72,7 @@ rule rasterise_nz_coastlines_and_islands_polygon:
         '''
 
 rule summation:
-    input: NZ_COAST_RASTER, WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT
+    input: NZ_COAST_RASTER, WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT, RAIL_FOOTPRINT, NAVIGABLE_WATER_FOOTPRINT
     output: 'data/footprints/output/human_footprint_nz-{year}.tif'
     conda: './envs/gdal.yml'
     params:

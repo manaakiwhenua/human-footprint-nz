@@ -170,7 +170,7 @@ rule roads_footprint:
     input: ROADS_RASTER_DISTANCE
     output: ROADS_FOOTPRINT
     log: f"{LOGS_DIR}/roads_footprint_{{year}}.log"
-    conda: '../envs/whitebox.yml'
+    conda: '../envs/gdal.yml'
     params:
         calc='(A<=500)*8+((A>500)&(A<15000))*(3.75*exp(-1.0*((A/1000.0)-1.0))+0.25)+(A>=15000)*0'
     shell:

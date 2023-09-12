@@ -3,3 +3,5 @@ rerun-incomplete: true
 jobs: 2
 printshellcmds: true
 rerun-triggers: mtime
+use-singularity: true
+# singularity-args: '-B data/:/data/'
