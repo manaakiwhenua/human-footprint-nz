@@ -15,7 +15,7 @@ Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zea
 
 ## Visual workflow summary
 
-[Generated with: `set -o allexport && source secrets.env && set +o allexport && snakemake --snakefile ./src/Snakefile --profile profiles/default -f all --rulegraph | dot -Tpng > rulegraph.png`](rulegraph.png)
+![Generated with: `set -o allexport && source secrets.env && set +o allexport && snakemake --snakefile ./src/Snakefile --profile profiles/default -f all --rulegraph | dot -Tpng > rulegraph.png`](<rulegraph.png>)
 
 ## Reproduction
 
@@ -46,6 +46,8 @@ These keys are API keys for Koordinates-platform Web Feature Service APIs; they 
 1. The workflow depends on [Kart](https://github.com/koordinates/kart); follow the official installation instructions.
 
     - The instructions currently lack information about adding a public key to be able to clone Kart repositories. Go to https://id.koordinates.com/ssh-keys/ and click "Add Public Key" to add one. If you don't have an SSH key, work through [Github documentation](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account) until you do, as the idea is identical, except that you will add your public key to Koordinates rather than to Github.
+
+1. [git-lfs](https://git-lfs.com/), due to dependence on one static layer that cannot be downloaded programmatically.
 
 _This workflow has only been run on Linux._
 
