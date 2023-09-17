@@ -1,7 +1,7 @@
 import os
 import string
 
-from snakemake.utils import min_version
+from snakemake.utils import min_version, validate
 
 min_version("7.32")
 
@@ -9,10 +9,19 @@ secrets = {'LRIS_KEY'}
 for secret in secrets:
     envvars: secret
 
-LOGS_DIR = 'logs'
+validate(config, "../config.schema.yml")
 
-NZ_COAST_VECTOR = 'data/downloads/nz-coastlines-and-islands-polygons-topo-1-50k.gpkg'
-NZ_COAST_RASTER = 'data/downloads/nz-coastlines-and-islands-polygons-topo-1-50k.tif'
+LOGD = Path(config.get('logs_directory', ''))
+OUTD = Path(config.get('output_directory', ''))
+TMPD = Path(config.get('tmp_directory', '/tmp'))
+
+NZ_COAST_VECTOR = OUTD / 'data/downloads/nz-coastlines-and-islands-polygons-topo-1-50k.gpkg'
+NZ_COAST_RASTER = OUTD / 'data/downloads/nz-coastlines-and-islands-polygons-topo-1-50k.tif'
+
+TARGET_YEARS = ['2012', '2018']
+
+FOOTPRINT = OUTD / 'data/footprints/output/human_footprint_nz-{year}.tif'
+ARCHIVE = OUTD / 'archival/human_footrint.archive.{year}.zip'
 
 include: "rules/lcdb.smk"
 include: "rules/worldpop.smk"
@@ -21,16 +30,25 @@ include: "rules/eog.smk"
 include: "rules/linz.smk"
 include: "rules/waterways.smk"
 
+get_nearest = lambda options, candidate: min(options, key=lambda x: abs(int(x)-int(candidate)))
+
 rule all:
     input:
-        expand('data/footprints/output/human_footprint_nz-{year}.tif', year=['2018'])
+        expand(ARCHIVE, year=TARGET_YEARS)
 
 
+rule archive:
+    input: FOOTPRINT
+    output: ARCHIVE
+    shell: '''
+        mkdir -p $(dirname {output})
+        zip -r {output} './data'
+    '''
 rule download_nz_coastlines_and_islands_polygon:
     output: NZ_COAST_VECTOR
     threads: 2
     conda: './envs/gdal.yml'
-    log: f"{LOGS_DIR}/download_nz_coastlines_and_islands_polygon.log"
+    log: LOGD / 'download_nz_coastlines_and_islands_polygon.log'
     params:
         host="https://data.linz.govt.nz",
         key=lambda wc: os.environ.get('LRIS_KEY'),
@@ -38,13 +56,12 @@ rule download_nz_coastlines_and_islands_polygon:
         nln="nz-coastline",
         nlt="multipolygon",
         geom_var="geom"
-    shell:
-        '''
-        mkdir -p $(dirname {output}) && \
+    shell: '''
+        mkdir -p $(dirname {output})
         ogr2ogr --config GDAL_HTTP_UNSAFESSL YES -f GPKG -t_srs EPSG:3851 \
-        {output} WFS:\"{params.host}/services;key={params.key}/wfs/{params.layer}\" {params.layer} -nln {params.nln} \
-        -nlt {params.nlt} -nlt PROMOTE_TO_MULTI -overwrite -lco GEOMETRY_NAME={params.geom_var} -unsetFid \
-        '''
+            {output} WFS:\"{params.host}/services;key={params.key}/wfs/{params.layer}\" {params.layer} -nln {params.nln} \
+            -nlt {params.nlt} -nlt PROMOTE_TO_MULTI -overwrite -lco GEOMETRY_NAME={params.geom_var} -unsetFid
+    '''
 
 # Binary mask 1 = land (including rivers, lakes), 0 = not land
 # NB "all touched" method
@@ -52,37 +69,40 @@ rule rasterise_nz_coastlines_and_islands_polygon:
     input: NZ_COAST_VECTOR
     output: NZ_COAST_RASTER
     conda: './envs/gdal.yml'
-    log: f"{LOGS_DIR}/rasterise_nz_coastlines_and_islands_polygon.log"
-    shell:
-        '''
-        rm -rf {output} && mkdir -p $(dirname {output}) && \
+    log: LOGD / 'rasterise_nz_coastlines_and_islands_polygon.log'
+    shell: '''
+        rm -rf {output} && mkdir -p $(dirname {output})
         gdal_rasterize -b -burn 1 -of GTiff -ot Byte \
-        -a_nodata 0 -init 0 -at \
-        -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        -co COMPRESS=ZSTD -co PREDICTOR=2 \
-        -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
-        -co NUM_THREADS=ALL_CPUS \
-        {input} {output} \
-        && gdal_edit.py -stats -a_srs EPSG:3851 {output}
+            -a_nodata 0 -init 0 -at \
+            -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
+            -co COMPRESS=ZSTD -co PREDICTOR=2 \
+            -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
+            -co NUM_THREADS=ALL_CPUS \
+            {input} {output}
+        gdal_edit.py -stats -a_srs EPSG:3851 {output}
         '''
 
 rule summation:
     input: NZ_COAST_RASTER, WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT, RAIL_FOOTPRINT, NAVIGABLE_WATER_FOOTPRINT
-    output: 'data/footprints/output/human_footprint_nz-{year}.tif'
+    output: FOOTPRINT
     conda: './envs/gdal.yml'
+    log: LOGD / 'summation-{year}.log'
     params:
+        tmp=TMPD,
+        max_value=10+10+10+7+4+8+8+4, # Maximum hypothetical value
         input_layers_calc=lambda wildcards, input: ' '.join(map(lambda x: f'-{x[0]} {x[1]}.vrt', zip(list(string.ascii_uppercase[:len(input)]), input))),
-        input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)])
-    shell:
-        '''
-        mkdir -p $(dirname {output}) && \
+        input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)]),
+        creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+    shell: '''
+        mkdir -p $(dirname {output})
         for input_file in {input}; do
             gdal_translate -of VRT $input_file $input_file.vrt -a_nodata 255
         done; \
-        gdal_calc.py {params.input_layers_calc} --calc="(A==0)*-1+(A==1)*({params.input_calc})" --extent=union --outfile {output} \
-        --co COMPRESS=ZSTD --co PREDICTOR=3 \
-        --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
-        --co NUM_THREADS=ALL_CPUS --overwrite \
-        --NoDataValue=-1 \
-        && gdal_edit.py -stats {output}
+        gdal_calc.py {params.input_layers_calc} --calc="(A==0)*-1+(A==1)*({params.input_calc})" --extent=union \
+            --outfile {params.tmp}/$(basename {output}) --overwrite \
+            {params.creation_options} --NoDataValue=-1
+        gdal_calc.py -A {params.tmp}/$(basename {output}) -B {input[0]} --calc="where(logical_and(A>{params.max_value},B==1),0,A)" \
+            --outfile {output} --overwrite \
+            {params.creation_options} --hideNoData --NoDataValue=-1
+        gdal_edit.py -stats {output}
         '''

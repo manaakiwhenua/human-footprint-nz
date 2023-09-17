@@ -1,7 +1,7 @@
 # https://eogdata.mines.edu/products/vnl/
 
-VNL = 'data/downloads/vnl/{year}/VNL_v21_npp_2012_global_vcmslcfg_c202205302300.median_masked.tif'
-VNL_FOOTPRINT = 'data/footprints/vnl/{year}/vnl-footprint-{year}.tif'
+VNL = OUTD / 'data/downloads/vnl/{year}/VNL_v21_npp_2012_global_vcmslcfg_c202205302300.median_masked.tif'
+VNL_FOOTPRINT = OUTD / 'data/footprints/vnl/{year}/vnl-footprint-{year}.tif'
 
 VNL_URLS = {
     2022: 'https://eogdata.mines.edu/nighttime_light/annual/v22/2022/VNL_v22_npp-j01_2022_global_vcmslcfg_c202303062300.median_masked.dat.tif.gz',
@@ -25,27 +25,26 @@ VNL_YEARS = list(map(str, VNL_URLS.keys()))
 # Since Human Footpring mapping is using VNL data for the computation of deciles, this conversion does not result in lost information. 
 rule download_project_clip_vnl:
     output: VNL
-    params:
-        url=lambda wildcards: VNL_URLS[int(wildcards.year)]
-    conda: '../envs/gdal.yml'
     wildcard_constraints:
-        year=f'({"|".join(VNL_YEARS)})'
-    shell:
-        '''
-        mkdir -p $(dirname {output}) && \
-        curl -o - {params.url} | gunzip > {output}.4326.tif && \
-        gdal_edit.py -stats {output}.4326.tif && \
+        year='\d{4}'
+    params:
+        url=lambda wildcards: VNL_URLS[get_nearest(VNL_URLS, wildcards.year)],
+        extent=config['extent'],
+        creation_options=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+    conda: '../envs/gdal.yml'
+    log: LOGD / "download_project_clip_vnl_{year}.log"
+    shell: '''
+        mkdir -p $(dirname {output})
+        curl -o - {params.url} | gunzip > {output}.4326.tif
+        gdal_edit.py -stats {output}.4326.tif
         gdalwarp -t_srs EPSG:3851 -t_coord_epoch {wildcards.year}.0 \
-        -r near -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        -co COMPRESS=ZSTD -co PREDICTOR=3 \
-        -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
-        -co NUM_THREADS=ALL_CPUS -overwrite \
-        -multi -wo NUM_THREADS=ALL_CPUS \
-        {output}.4326.tif {output}.unscaled.tif \
-        && gdal_edit.py -stats {output}.unscaled.tif \
-        && gdal_translate -ot Byte -scale {output}.unscaled.tif {output} \
-        && gdal_edit.py -stats {output} \
-        '''
+            -r near -tr 100 100 -te {params.extent} -overwrite {params.creation_options}\
+            -multi -wo NUM_THREADS=ALL_CPUS \
+            {output}.4326.tif {output}.unscaled.tif
+        gdal_edit.py -stats {output}.unscaled.tif
+        gdal_translate -ot Byte -scale {output}.unscaled.tif {output}
+        gdal_edit.py -stats {output}
+    '''
 
 # NB perform "gdalinfo -hist {output}" to verify that the output is in 10 approximately equal bins (excluding 0).
 # The result won't have exactly bins: values stradling the edge aren't distributed evenly between boundary values,
@@ -53,9 +52,7 @@ rule download_project_clip_vnl:
 rule footprint_vnl:
     input: VNL
     output: VNL_FOOTPRINT
-    wildcard_constraints:
-        year=f'({"|".join(VNL_YEARS)})'
-    log: f"{LOGS_DIR}/footprint_vnl_{{year}}.log"
+    log: LOGD / "footprint_vnl_{year}.log"
     threads: 5
     params:
         logLevel='DEBUG'

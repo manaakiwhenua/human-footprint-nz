@@ -1,13 +1,14 @@
 WORLDPOP_YEARS = list(map(str, range(2000, 2021)))
 
-WORLDPOP = 'data/downloads/worldpop/nzl_ppp_{year}.tif'
-WORLDPOP_NZ = 'data/downloads/worldpop/nzl_ppp_{year}.3851.tif'
-WORLDPOP_NZ_LANDMASKED = 'data/downloads/worldpop/nzl_ppp_{year}.3851.landmasked.tif'
-WORLDPOP_FOOTPRINT_NZ = 'data/footprints/population-density/nzl_ppp_{year}.3851.tif'
+WORLDPOP = OUTD / 'data/downloads/worldpop/nzl_ppp_{year}.tif'
+WORLDPOP_NZ = OUTD / 'data/downloads/worldpop/nzl_ppp_{year}.3851.tif'
+WORLDPOP_NZ_LANDMASKED = OUTD / 'data/downloads/worldpop/nzl_ppp_{year}.3851.landmasked.tif'
+WORLDPOP_FOOTPRINT_NZ = OUTD / 'data/footprints/population-density/nzl_ppp_{year}.3851.tif'
 
 def worldpop_endpoint(year: int):
     # https://hub.worldpop.org/geodata/listing?id=76
     # return f'https://data.worldpop.org/GIS/Population_Density/Global_2000_2020_1km/{year}/NZL/nzl_pd_{year}_1km.tif'
+    year = get_nearest(WORLDPOP_YEARS, year)
     return f'https://data.worldpop.org/GIS/Population/Global_2000_2020/{year}/NZL/nzl_ppp_{year}.tif'
 
 # Data is people per pixel, but pixels are not equal area,
@@ -15,19 +16,16 @@ def worldpop_endpoint(year: int):
 rule download_worldpop:
     output: WORLDPOP
     wildcard_constraints:
-        year=f'({"|".join(WORLDPOP_YEARS)})'
+        year='\d{4}'
     conda: '../envs/gdal.yml'
-    log: f"{LOGS_DIR}/download_worldpop_{{year}}.log"
+    log: LOGD / "download_worldpop_{year}.log"
     params:
-        url=lambda wildcards: worldpop_endpoint(int(wildcards.year))
-    shell:
-        '''
-        mkdir -p $(dirname /tmp/{output}) && \
-        gdal_translate {params.url} {output} \
-        -co COMPRESS=ZSTD -co PREDICTOR=3 \
-        -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
-        -co NUM_THREADS=ALL_CPUS
-        '''
+        url=lambda wildcards: worldpop_endpoint(int(wildcards.year)),
+        creation_options=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+    shell: '''
+        mkdir -p $(dirname /tmp/{output})
+        gdal_translate {params.url} {output} {params.creation_options}
+    '''
 
 # Unit is people per pixel, i.e. people per 100m2
 # This performs a weighted sum, to return data to a projection that actually uses metres
@@ -35,19 +33,17 @@ rule download_worldpop:
 rule reproject_worldpop:
     input: WORLDPOP
     output: WORLDPOP_NZ
-    wildcard_constraints:
-        year=f'({"|".join(WORLDPOP_YEARS)})'
     conda: '../envs/gdal.yml'
-    log: f"{LOGS_DIR}/reproject_worldpop_{{year}}.log"
-    shell:
-        '''
+    log: LOGD / "reproject_worldpop_{year}.log"
+    params:
+        extent=config['extent'],
+        creation_options=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+    shell: '''
         gdalwarp -t_srs EPSG:3851 -t_coord_epoch {wildcards.year}.0 \
-        -r sum -tr 100 100 -te 1722483.9 5228058.61 4624385.49 8692574.54 \
-        -co COMPRESS=ZSTD -co PREDICTOR=3 \
-        -co TILED=YES -co BLOCKXSIZE=512 -co BLOCKYSIZE=512 \
-        -co NUM_THREADS=ALL_CPUS -overwrite \
-        {input} {output} \
-        && gdal_edit.py -stats {output}
+            -r sum -tr 100 100 -te {params.extent} \
+            -overwrite {params.creation_options} \
+            {input} {output}
+        gdal_edit.py -stats {output}
         '''
 
 # Includes a mask with the NZ coastline,
@@ -58,18 +54,17 @@ rule mask_worldpop:
         coastline=NZ_COAST_RASTER
     output: WORLDPOP_NZ_LANDMASKED
     conda: '../envs/gdal.yml'
-    log: f"{LOGS_DIR}/mask_worldpop_{{year}}.log"
-    shell:
-        '''
-        mkdir -p $(dirname {output}) && \
+    log: LOGD / "mask_worldpop_{year}.log"
+    params:
+        creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+    shell: '''
+        mkdir -p $(dirname {output})
         gdal_calc.py --outfile={output} \
-        --calc="(B==0)*0+isnan(A)*0+(A<0)*0+logical_and(B==1,A>0)*A" \
-        -A {input.population} -B {input.coastline} --hideNoData --NoDataValue=none \
-        --co COMPRESS=ZSTD --co PREDICTOR=3 --type=Float32 \
-        --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
-        --co NUM_THREADS=ALL_CPUS --overwrite \
-        && gdal_edit.py -stats {output}
-        '''
+            --calc="(B==0)*0+isnan(A)*0+(A<0)*0+logical_and(B==1,A>0)*A" \
+            -A {input.population} -B {input.coastline} --hideNoData --NoDataValue=none \
+            --type=Float32 --overwrite {params.creation_options}
+        gdal_edit.py -stats {output}
+    '''
 
 # Original footprint formula used 1km2, and max value was 1000 people per pixel, i.e. 1000 people per km2
 # To convert this to 100m2, this is 1/100 of 1km2, so 1/100*1000 = 10; therefore the max value is 10 people per 100m2
@@ -80,15 +75,13 @@ rule footprint_worldpop:
     input: WORLDPOP_NZ_LANDMASKED
     output: WORLDPOP_FOOTPRINT_NZ
     conda: '../envs/gdal.yml'
-    log: f"{LOGS_DIR}/footprint_worldpop_{{year}}.log"
-    shell:
-        '''
-        mkdir -p $(dirname {output}) && \
+    log: LOGD / "footprint_worldpop_{year}.log"
+    params:
+        creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+    shell: '''
+        mkdir -p $(dirname {output})
         gdal_calc.py --outfile={output} \
-        --calc="0*(A==0)+0*(A>=3.3e38)+10*(A>=10)+((A<10)&(A>0))*(3.333*log10(A*100+1))" \
-        -A {input} --hideNoData \
-        --co COMPRESS=ZSTD --co PREDICTOR=3 --type=Float32 \
-        --co TILED=YES --co BLOCKXSIZE=512 --co BLOCKYSIZE=512 \
-        --co NUM_THREADS=ALL_CPUS --overwrite \
-        && gdal_edit.py -stats {output}
-        '''
+            --calc="0*(A==0)+0*(A>=3.3e38)+10*(A>=10)+((A<10)&(A>0))*(3.333*log10(A*100+1))" \
+            -A {input} --hideNoData --type=Float32 --overwrite {params.creation_options}
+        gdal_edit.py -stats {output}
+    '''

@@ -1,0 +1,72 @@
+$schema: "https://json-schema.org/draft/2020-12/schema"
+description: Configuration for running the Human Footprint Index
+type: object
+properties:
+  required:
+    extent: true
+    tmp_directory: false
+    output_directory: false
+    logs_directory: false
+    compression_co: true
+  tmp_directory:
+    type: string
+    description: Path to tmp directory
+    default: '/tmp'
+  output_directory:
+    type: string
+    description: Path to output directory
+    default: ./data
+  logs_directory:
+    type: string
+    default: ./logs
+    description:  Path to logging directory
+  extent:
+    description: -te extent for GDAL tools
+    type: string
+    pattern: ^([\d\.]*\s?){4}$
+    examples:
+      - 1722483.9 5228058.61 4624385.49 8692574.54
+  compression_co:
+    type: object
+    description: GDAL creation options for various pre-defined operations
+    required:
+      - zstd_pred2
+      - zstd_pred3
+      - lzw_pred2
+    additional_properties: false
+    properties:
+      zstd_pred2:
+        $ref: "#/$defs/creation_options"
+      zstd_pred3:
+        $ref: "#/$defs/creation_options"
+      lzw_pred2:
+        $ref: "#/$defs/creation_options"
+
+$defs:
+  creation_options:
+    type: object
+    description: Subset of GDAL creation options
+    type: object
+    additionalProperties: false
+    required:
+      - COMPRESS
+      - PREDICTOR
+      - TILED
+      - BLOCKXSIZE
+      - BLOCKYSIZE
+      - NUM_THREADS
+    properties:
+      COMPRESS:
+        type: string
+        enum: [ZSTD, LZW]
+      PREDICTOR:
+        type: integer
+      TILED:
+        type: string
+        enum: ['YES', 'NO']
+      BLOCKXSIZE:
+        type: integer
+      BLOCKYSIZE:
+        type: integer
+      NUM_THREADS:
+        const: ALL_CPUS

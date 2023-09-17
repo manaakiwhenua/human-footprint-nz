@@ -1,0 +1,26 @@
+tmp_directory: '/media/lawr/TRANSCEND/tmp'
+output_directory: 'media/lawr/TRANSCEND/human-footprint-nz'
+logs_directory: 'media/lawr/TRANSCEND/human-footprint-nz/logs'
+extent: 1722483.9 5228058.61 4624385.49 8692574.54
+compression_co:
+  zstd_pred2:
+    COMPRESS: ZSTD
+    PREDICTOR: 2
+    TILED: 'YES'
+    BLOCKXSIZE: 512
+    BLOCKYSIZE: 512
+    NUM_THREADS: ALL_CPUS
+  zstd_pred3:
+    COMPRESS: ZSTD
+    PREDICTOR: 3
+    TILED: 'YES'
+    BLOCKXSIZE: 512
+    BLOCKYSIZE: 512
+    NUM_THREADS: ALL_CPUS
+  lzw_pred2:
+    COMPRESS: LZW
+    PREDICTOR: 2
+    TILED: 'YES'
+    BLOCKXSIZE: 512
+    BLOCKYSIZE: 512
+    NUM_THREADS: ALL_CPUS
