@@ -42,6 +42,22 @@ RAIL_SHAS = {
     }
 } # NZ Railway Centrelines (Topo, 1:50k)
 
+TUNNEL_SHAS = {
+    'layer-50366': {
+        2012: 'b86a8d2819115fa8af04302908138203a26aea46', # 2012-01-25
+        2013: '58285f1e7ab4da3907cf2c12a6c7b42a8b757b09', # 2012-01-16
+        2014: 'e7042aee42fdc11f65f2130eb5563204da2305ce', # 2013-12-13
+        2015: '9b3f0e4ba2e5376f85866d6e14f3268a279101a7', # 2015-03-10
+        2016: 'c100804e147bb1dd349eb245d2b7804bf25ed291', # 2016-01-05
+        2017: '2db753ce420ba433d2fc5a771e40271eb73778c4', # 2017-02-13
+        2018: '5061cb1452216d1f64ae2afd06c513c7f482fe10', # 2018-02-02
+        2019: 'de615c656c7326ef0a9ec16e8987b639a00662b0', # 2018-12-12
+        2020: '2d1edafb3437f4c2547322d0159357e70f3723a0', # 2020-02-16
+        2021: '0c66a29cdf886857c69f1e9c9bfa499697506973', # 2021-02-19
+        2022: '8c45322489582a8453649a5ab8013c3f54379193', # 2021-12-21
+        2023: '99396074c180e8f1b6e0abbc3df25098245f9d4c', # 2022-09-22 # TODO more recent updates?
+    }
+}
 
 LINZ_YEARS = list(map(str, range(2012, 2024)))
 
@@ -51,7 +67,8 @@ def get_kart_roads_sha(year: int, layer: str) -> str:
 def get_kart_rail_sha(year: int, layer: str) -> str:
     return RAIL_SHAS[layer][get_nearest(RAIL_SHAS[layer], year)]
 
-TEMPLATE_RASTER = OUTD / "data/downloads/template.tif"
+def get_kart_tunnel_sha(year: int, layer: str) -> str:
+    return TUNNEL_SHAS[layer][get_nearest(TUNNEL_SHAS[layer], year)]
 
 MAINLAND_ROADS = OUTD / "data/downloads/roads/mainland/{year}/roads-mainland-{year}.gpkg"
 CHATHAMS_ROADS = OUTD / "data/downloads/roads/chathams/{year}/roads-chathams-{year}.gpkg"
@@ -61,9 +78,12 @@ ROADS_RASTER_DISTANCE = OUTD / "data/downloads/roads/{year}/roads-{year}-euclide
 ROADS_FOOTPRINT = OUTD / "data/footprints/roads/roads-{year}.tif"
 
 RAIL = OUTD / "data/downloads/rail/{year}/rail-{year}.shp" # SHP due to WhiteBox tools limitation https://www.whiteboxgeo.com/manual/wbt_book/supported_formats.html#vector-formats
+RAIL_NO_TUNNELS = OUTD / "data/downloads/rail/{year}/rail_no_tunnels-{year}.shp"
 RAIL_RASTER = OUTD / "data/downloads/rail/{year}/rail-{year}.tif"
 RAIL_RASTER_DISTANCE = OUTD / "data/downloads/rail/{year}/rail-{year}-euclidean_distance.tif"
 RAIL_FOOTPRINT = OUTD / "data/footprints/rail/rail-{year}.tif"
+
+TUNNELS = "data/downloads/tunnel/{year}/tunnel-{year}.gpkg"
 
 rule checkout_roads_mainland:
     output: MAINLAND_ROADS
@@ -130,6 +150,32 @@ rule checkout_rail:
         ogr2ogr -t_srs EPSG:3851 {output} $(dirname {output})/$(basename -s .shp {output}).gpkg
     '''
 
+rule erase_tunnels_rail:
+    input: 
+        feature=RAIL,
+        overlay=TUNNELS
+    output: RAIL_NO_TUNNELS
+    conda: '../envs/qgis.yml'
+    log: f"{LOGS_DIR}/erase_tunnels_rail_{{year}}.log"
+    params:
+        grid_size=0.01
+    shell: '''
+        mkdir -p $(dirname {output})
+        mkdir -p /tmp/{output}
+        qgis_process run native:difference -- INPUT={input.feature} OVERLAY={input.overlay} OUTPUT=/tmp/{output} GRID_SIZE={params.grid_size}
+        qgis_process run native:difference -- INPUT=/tmp/{output} OVERLAY={input.overlay} OUTPUT=/tmp/{output} GRID_SIZE={params.grid_size}
+        qgis_process run native:difference -- INPUT=/tmp/{output} OVERLAY={input.overlay} OUTPUT={output} GRID_SIZE={params.grid_size}
+    '''
+
+
+use rule checkout_rail as checkout_tunnels with:
+    output: TUNNELS
+    log: f"{LOGS_DIR}/checkout_tunnels_{{year}}.log"
+    params:
+        layer='layer-50366',
+        workingcopy=lambda wildcards: f'data/clones/tunnel/{wildcards.year}',
+        kart_hash=lambda wildcards: get_kart_tunnel_sha(int(wildcards.year), 'layer-50366')
+
 rule roads_rasterisation:
     input: ROADS,
     output: ROADS_RASTER
@@ -146,7 +192,7 @@ rule roads_rasterisation:
     '''
 
 use rule roads_rasterisation as rail_rasterisation with:
-    input: RAIL
+    input: RAIL_NO_TUNNELS
     output: RAIL_RASTER
     log:LOGD / "rail_rasterisation_{year}.log"
 
@@ -182,7 +228,7 @@ rule roads_footprint:
 
 use rule roads_footprint as rail_footprint with:
     input: RAIL_RASTER_DISTANCE
-    output: RAIL_FOOTPRINT
+    output: RHEADAIL_FOOTPRINT
     log: LOGD / "/rail_footprint_{year}.log"
     params:
         creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items()),
