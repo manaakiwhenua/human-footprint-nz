@@ -56,6 +56,8 @@ These keys are API keys for Koordinates-platform Web Feature Service APIs; they 
 
 1. The workflow depends on [Docker](https://www.docker.com/) (for access to [GRASS GIS](https://grass.osgeo.org/)).
 
+1. The workflow depends on [Singularity](https://docs.sylabs.io/guides/3.0/user-guide/installation.html).
+
 _This workflow has only been run on Linux._
 
 ### Pre-existing river data
