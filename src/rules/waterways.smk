@@ -8,7 +8,7 @@ LAKES_EXTERIOR = OUTD / 'data/downloads/lakes/lakes-exterior-rings.gpkg'
 LAKES_EXTERIOR_RASTER = OUTD / 'data/downloads/lakes/lakes-exterior-rings.tif'
 
 RIVERS_REC = OUTD / 'data/downloads/rivers-rec2/rivers-rec2.gpkg'
-PREEXISTING_RIVER_DATA = OUTD / 'static/NZRiverMaps_data_2023-09-07.csv'
+PREEXISTING_RIVER_DATA = 'static/NZRiverMaps_data_2023-09-07.csv'
 RIVERS_REC_FILTERED = OUTD / 'data/downloads/rivers-rec2/rivers-rec2.attributes.filtered.gpkg'
 RIVERS_REC_FILTERED_3851 = OUTD / 'data/downloads/rivers-rec2/rivers-rec2.attributes.filtered.3851.gpkg'
 RIVERS_RASTER = OUTD / 'data/downloads/rivers-rec2/rivers-rec2.attributes.filtered.tif'
@@ -94,7 +94,8 @@ rule download_rec25:
     params:
         url="https://services3.arcgis.com/fp1tibNcN9mbExhG/arcgis/rest/services/REC2_Layers/FeatureServer/0/query?where=objectid%3Dobjectid&objectIds=&time=&geometry=&geometryType=esriGeometryPolyline&inSR=&spatialRel=esriSpatialRelIntersects&resultType=none&distance=0.0&units=esriSRUnit_Meter&relationParam=&returnGeodetic=false&outFields=*&returnGeometry=true&featureEncoding=esriDefault&multipatchOption=xyFootprint&maxAllowableOffset=&geometryPrecision=&outSR=&defaultSR=&datumTransformation=&applyVCSProjection=false&returnIdsOnly=false&returnUniqueIdsOnly=false&returnCountOnly=false&returnExtentOnly=false&returnQueryGeometry=false&returnDistinctValues=false&cacheHint=false&orderByFields=&groupByFieldsForStatistics=&outStatistics=&having=&resultOffset=&resultRecordCount=&returnZ=false&returnM=false&returnExceededLimitFeatures=true&quantizationParameters=&sqlFormat=none&f=json&token="
     shell: '''
-        ogr2ogr -f GPKG {output} {params.url} -gt 10000
+        rm -f {output}
+        ogr2ogr -f GPKG {output} "{params.url}" -gt 10000
     '''
 
 rule rec_join_and_filter:
