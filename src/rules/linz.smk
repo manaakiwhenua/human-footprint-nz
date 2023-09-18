@@ -50,7 +50,7 @@ TUNNEL_SHAS = {
         2015: '9b3f0e4ba2e5376f85866d6e14f3268a279101a7', # 2015-03-10
         2016: 'c100804e147bb1dd349eb245d2b7804bf25ed291', # 2016-01-05
         2017: '2db753ce420ba433d2fc5a771e40271eb73778c4', # 2017-02-13
-        2018: '5061cb1452216d1f64ae2afd06c513c7f482fe10', # 2018-02-02
+        2018: 'e116bd3eb41697086259bb72096d24e1777b004b', # 2018-05-08
         2019: 'de615c656c7326ef0a9ec16e8987b639a00662b0', # 2018-12-12
         2020: '2d1edafb3437f4c2547322d0159357e70f3723a0', # 2020-02-16
         2021: '0c66a29cdf886857c69f1e9c9bfa499697506973', # 2021-02-19
@@ -72,18 +72,19 @@ def get_kart_tunnel_sha(year: int, layer: str) -> str:
 
 MAINLAND_ROADS = OUTD / "data/downloads/roads/mainland/{year}/roads-mainland-{year}.gpkg"
 CHATHAMS_ROADS = OUTD / "data/downloads/roads/chathams/{year}/roads-chathams-{year}.gpkg"
-ROADS = OUTD / "data/downloads/roads/{year}/roads-{year}.shp" # SHP due to WhiteBox tools limitation https://www.whiteboxgeo.com/manual/wbt_book/supported_formats.html#vector-formats
+ROADS = OUTD / "data/downloads/roads/{year}/roads-{year}.gpkg"
+ROADS_NO_TUNNELS = OUTD / "data/downloads/roads/{year}/roads_no_tunnels-{year}.gpkg"
 ROADS_RASTER = OUTD / "data/downloads/roads/{year}/roads-{year}.tif"
 ROADS_RASTER_DISTANCE = OUTD / "data/downloads/roads/{year}/roads-{year}-euclidean_distance.tif"
 ROADS_FOOTPRINT = OUTD / "data/footprints/roads/roads-{year}.tif"
 
-RAIL = OUTD / "data/downloads/rail/{year}/rail-{year}.shp" # SHP due to WhiteBox tools limitation https://www.whiteboxgeo.com/manual/wbt_book/supported_formats.html#vector-formats
-RAIL_NO_TUNNELS = OUTD / "data/downloads/rail/{year}/rail_no_tunnels-{year}.shp"
+RAIL = OUTD / "data/downloads/rail/{year}/rail-{year}.gpkg"
+RAIL_NO_TUNNELS = OUTD / "data/downloads/rail/{year}/rail_no_tunnels-{year}.gpkg"
 RAIL_RASTER = OUTD / "data/downloads/rail/{year}/rail-{year}.tif"
 RAIL_RASTER_DISTANCE = OUTD / "data/downloads/rail/{year}/rail-{year}-euclidean_distance.tif"
 RAIL_FOOTPRINT = OUTD / "data/footprints/rail/rail-{year}.tif"
 
-TUNNELS = "data/downloads/tunnel/{year}/tunnel-{year}.gpkg"
+TUNNELS = OUTD / "data/downloads/tunnel/{year}/tunnel-{year}.gpkg"
 
 rule checkout_roads_mainland:
     output: MAINLAND_ROADS
@@ -123,9 +124,7 @@ rule merge_roads:
         nln='roads'
     shell: '''
         mkdir -p $(dirname {output})
-        ogrmerge.py -o {output} {input} -f "ESRI Shapefile" -single -nln {params.nln} -overwrite_ds -t_srs EPSG:3851 -progress
-        ogrinfo {output} -sql "CREATE SPATIAL INDEX ON $(basename -s .shp {output})"
-        ogrinfo $(dirname {output})/$(basename -s .shp {output}).dbf -sql "RESIZE $(basename -s .shp {output})"
+        ogrmerge.py -o {output} {input} -single -nln {params.nln} -overwrite_ds -t_srs EPSG:3851 -progress
         '''
 
 rule checkout_rail:
@@ -137,17 +136,18 @@ rule checkout_rail:
     conda: '../envs/gdal.yml'
     log: LOGD / "checkout_rail_{year}.log"
     params:
+        tmp=TMPD,
         layer='layer-50319',
         workingcopy=lambda wildcards: f'data/clones/rail/{wildcards.year}',
         kart_hash=lambda wildcards: get_kart_rail_sha(int(wildcards.year), 'layer-50319')
     shell: '''
-        rm -rf $(dirname {output})/$(basename -s .shp {output}).gpkg
         rm -rf {params.workingcopy}
-        kart clone --workingcopy-location $(dirname {output})/$(basename -s .shp {output}).gpkg --progress kart@data.koordinates.com:land-information-new-zealand/{params.layer} {params.workingcopy}
+        rm -rf {params.tmp}/$(basename {output})
+        kart clone --workingcopy-location {params.tmp}/$(basename {output}) --progress kart@data.koordinates.com:land-information-new-zealand/{params.layer} {params.workingcopy}
         pushd {params.workingcopy}
             kart checkout {params.kart_hash}
         popd
-        ogr2ogr -t_srs EPSG:3851 {output} $(dirname {output})/$(basename -s .shp {output}).gpkg
+        ogr2ogr -t_srs EPSG:3851 {output} {params.tmp}/$(basename {output})
     '''
 
 rule erase_tunnels_rail:
@@ -156,28 +156,34 @@ rule erase_tunnels_rail:
         overlay=TUNNELS
     output: RAIL_NO_TUNNELS
     conda: '../envs/qgis.yml'
-    log: f"{LOGS_DIR}/erase_tunnels_rail_{{year}}.log"
+    log: LOGD / "erase_tunnels_rail_{year}.log"
     params:
-        grid_size=0.01
+        grid_size=5
     shell: '''
-        mkdir -p $(dirname {output})
-        mkdir -p /tmp/{output}
-        qgis_process run native:difference -- INPUT={input.feature} OVERLAY={input.overlay} OUTPUT=/tmp/{output} GRID_SIZE={params.grid_size}
-        qgis_process run native:difference -- INPUT=/tmp/{output} OVERLAY={input.overlay} OUTPUT=/tmp/{output} GRID_SIZE={params.grid_size}
-        qgis_process run native:difference -- INPUT=/tmp/{output} OVERLAY={input.overlay} OUTPUT={output} GRID_SIZE={params.grid_size}
+        mkdir -p $(dirname {output}) && rm -f {output}
+        qgis_process run native:difference -- INPUT={input.feature} OVERLAY={input.overlay} OUTPUT={output} GRID_SIZE={params.grid_size}
     '''
 
+use rule erase_tunnels_rail as erase_tunnels_road with:
+    input:
+        feature=ROADS,
+        overlay=TUNNELS
+    output: ROADS_NO_TUNNELS
+    log: LOGD / "erase_tunnels_road_{year}.log"
+    params:
+        grid_size=1
 
 use rule checkout_rail as checkout_tunnels with:
     output: TUNNELS
-    log: f"{LOGS_DIR}/checkout_tunnels_{{year}}.log"
+    log: LOGD / "checkout_tunnels_{year}.log"
     params:
+        tmp=TMPD,
         layer='layer-50366',
         workingcopy=lambda wildcards: f'data/clones/tunnel/{wildcards.year}',
         kart_hash=lambda wildcards: get_kart_tunnel_sha(int(wildcards.year), 'layer-50366')
 
 rule roads_rasterisation:
-    input: ROADS,
+    input: ROADS_NO_TUNNELS,
     output: ROADS_RASTER
     log: LOGD / "roads_rasterisation_{year}.log"
     conda: '../envs/gdal.yml'
@@ -209,12 +215,12 @@ rule roads_euclidean_distance:
 use rule roads_euclidean_distance as rail_euclidean_distance with:
     input: RAIL_RASTER
     output: RAIL_RASTER_DISTANCE
-    log: LOGD / "/rail_euclidean_distance_{year}.log"
+    log: LOGD / "rail_euclidean_distance_{year}.log"
 
 rule roads_footprint:
     input: ROADS_RASTER_DISTANCE
     output: ROADS_FOOTPRINT
-    log: LOGD / "/roads_footprint_{year}.log"
+    log: LOGD / "roads_footprint_{year}.log"
     conda: '../envs/gdal.yml'
     params:
         creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items()),
@@ -228,8 +234,8 @@ rule roads_footprint:
 
 use rule roads_footprint as rail_footprint with:
     input: RAIL_RASTER_DISTANCE
-    output: RHEADAIL_FOOTPRINT
-    log: LOGD / "/rail_footprint_{year}.log"
+    output: RAIL_FOOTPRINT
+    log: LOGD / "rail_footprint_{year}.log"
     params:
         creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items()),
         calc='(A<=500)*8+(A>500)*0'

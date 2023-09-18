@@ -3,4 +3,5 @@ channels:
 channel_priority: strict
 dependencies:
   - gdal>=3.7.0
-  - qgis==3.32.2
+  - qgis==3.32.*
+  - ocl-icd-system
