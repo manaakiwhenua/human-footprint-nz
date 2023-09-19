@@ -17,6 +17,8 @@ Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zea
 
 ![Human Footprint Index for 2018](<HFI-2018.png>)
 
+NB: the workflow is capable of generating a GeoTIFF (projection: [NZGD2000 / NZCS2000](https://epsg.io/3851)) which has an extent and a pressure score for all [NZ outlying islands](https://en.wikipedia.org/wiki/New_Zealand_outlying_islands), not just the mainland. This does not include the Ross Dependency (including the Balleny Islands), Tokelau, the Cook Islands, or Niue.
+
 ![Components of the Human Footprint Index for 2018](<9-square.png>)
 
 
