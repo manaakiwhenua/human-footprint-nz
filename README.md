@@ -1,4 +1,4 @@
-[![manaakiwhenua-standards](https://github.com/manaakiwhenua/<NAME OF YOUR REPOSITORY>/workflows/manaakiwhenua-standards/badge.svg)](https://github.com/manaakiwhenua/manaakiwhenua-standards)
+[![manaakiwhenua-standards](https://github.com/manaakiwhenua/human-footprint-nz/workflows/manaakiwhenua-standards/badge.svg)](https://github.com/manaakiwhenua/manaakiwhenua-standards)
 
 # Human Footprint NZ
 
