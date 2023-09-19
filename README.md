@@ -1,3 +1,5 @@
+[![manaakiwhenua-standards](https://github.com/manaakiwhenua/<NAME OF YOUR REPOSITORY>/workflows/manaakiwhenua-standards/badge.svg)](https://github.com/manaakiwhenua/manaakiwhenua-standards)
+
 # Human Footprint NZ
 
 Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zealand
@@ -69,4 +71,4 @@ Data for median flow (and wetted width at median flow) for all NZ rivers (REC) w
 ## Contact
 
 - Oliva Burge (project leader)
-- Richard Law (technical implementation)
+- [Richard Law](https://github.com/alpha-beta-soup) (technical implementation)
