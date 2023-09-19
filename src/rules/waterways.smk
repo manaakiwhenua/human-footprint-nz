@@ -199,6 +199,7 @@ rule naviagable_water_within_distance:
         gdal_edit.py -stats -a_srs EPSG:3851 {output}
     '''
 
+# NB note profile singularity-args volume mounting
 rule navigable_water_cost_distance_grass:
     input:
         source=NAVIGABLE_WATER_WITHIN,
@@ -206,9 +207,11 @@ rule navigable_water_cost_distance_grass:
     output: NAVIGABLE_WATER_COST_DISTANCE
     shadow: "shallow"
     container: "docker://osgeo/grass-gis:releasebranch_8_3-alpine"
-    log: LOGD / "cost_distance_grass-{year}.log"
     params:
-        tmp=TMPD,
+        tmp='/tmp',
+        source=lambda wc, input: pathlib.PurePosixPath(input.source).relative_to(OUTD),
+        cost=lambda wc, input: pathlib.PurePosixPath(input.cost).relative_to(OUTD),
+        output=lambda wc, output: pathlib.PurePosixPath(str(output)).relative_to(OUTD),
         grassdata="grassdata/navigable_water",
         mapset="PERMANENT",
         grass_exe="grass grassdata/navigable_water/PERMANENT/ --exec",
@@ -219,18 +222,16 @@ rule navigable_water_cost_distance_grass:
     shell: '''
         rm -rf {params.grassdata}
         rm -f {log}
-        rm -f {output}
-        rm -f {params.tmp}/$(basename {output})
-        (
-            grass -c {input.cost} -e {params.grassdata} && \
-            {params.grass_exe} r.in.gdal -e -k --verbose --overwrite input="{input.cost}" output="$(basename -s .tif {input.cost})" memory=2048 && \
-            {params.grass_exe} r.in.gdal -k --verbose --overwrite input="{input.source}" output="$(basename -s .tif {input.source})" memory=2048 && \
-            {params.grass_exe} r.cost -k -n input=$(basename -s .tif {input.cost}) start_raster=$(basename -s .tif {input.source}) output=$(basename -s .tif {output}) max_cost={params.max_cost} memory=14000 && \
-            {params.grass_exe} r.out.gdal -f -c input=$(basename -s .tif {output}) {params.creation_options_grass} type=Float32 output={params.tmp}/$(basename {output})
-        ) 2>&1 | tee {log}
+        rm -f /{params.output}
+        rm -f {params.tmp}/$(basename /{params.output})
+        grass -c /{params.cost} -e {params.grassdata}
+        {params.grass_exe} r.in.gdal -e -k --verbose --overwrite input="/{params.cost}" output="$(basename -s .tif /{params.cost})" memory=2048
+        {params.grass_exe} r.in.gdal -k --verbose --overwrite input="/{params.source}" output="$(basename -s .tif /{params.source})" memory=2048
+        {params.grass_exe} r.cost -k -n input=$(basename -s .tif /{params.cost}) start_raster=$(basename -s .tif {params.source}) output=$(basename -s .tif /{params.output}) max_cost={params.max_cost} memory=14000
+        {params.grass_exe} r.out.gdal -f -c input=$(basename -s .tif /{params.output}) {params.creation_options_grass} type=Float32 output={params.tmp}/$(basename /{params.output})
         gdalwarp -tr 100 100 -te {params.extent} -overwrite {params.creation_options} \
-            {params.tmp}/$(basename {output}) {output}
-        gdal_edit.py -stats {output}
+            {params.tmp}/$(basename /{params.output}) /{params.output}
+        gdal_edit.py -stats /{params.output}
     '''
 
 

@@ -4,4 +4,5 @@ jobs: 2
 printshellcmds: true
 rerun-triggers: mtime
 use-singularity: true
+singularity-args: "-B /media/lawr/TRANSCEND/human-footprint-nz/data:/data -B /media/lawr/TRANSCEND/human-footprint-nz/logs:/logs -B /media/lawr/TRANSCEND/tmp:/tmp"
 configfile: config.yml

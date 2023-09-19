@@ -1,4 +1,5 @@
 import os
+import pathlib
 import string
 
 from snakemake.utils import min_version, validate
@@ -37,12 +38,16 @@ rule all:
         expand(ARCHIVE, year=TARGET_YEARS)
 
 
+source=lambda wc, input: pathlib.PurePosixPath(input.source).relative_to(OUTD),
+
 rule archive:
     input: FOOTPRINT
     output: ARCHIVE
+    params:
+        target=OUTD / 'data'
     shell: '''
         mkdir -p $(dirname {output})
-        zip -r {output} './data'
+        zip -r {output} {params.target}
     '''
 rule download_nz_coastlines_and_islands_polygon:
     output: NZ_COAST_VECTOR
