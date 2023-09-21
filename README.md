@@ -24,7 +24,7 @@ NB: the workflow is capable of generating a GeoTIFF (projection: [NZGD2000 / NZC
 
 ## Visual workflow summary
 
-![Generated with: `set -o allexport && source secrets.env && set +o allexport && snakemake --snakefile ./src/Snakefile --profile profiles/default -f all --rulegraph | dot -Tpng > rulegraph.png`](<images/rulegraph.png>)
+![Generated with: `set -o allexport && source secrets.env && set +o allexport && snakemake --snakefile ./src/Snakefile --profile profiles/default -f all --rulegraph | dot -Tpng > images/rulegraph.png`](<images/rulegraph.png>)
 
 ## Reproduction
 
