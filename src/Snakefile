@@ -30,6 +30,7 @@ include: "rules/jrc.smk"
 include: "rules/eog.smk"
 include: "rules/linz.smk"
 include: "rules/waterways.smk"
+include: "rules/comparison.smk"
 
 get_nearest = lambda options, candidate: min(options, key=lambda x: abs(int(x)-int(candidate)))
 
@@ -41,7 +42,7 @@ rule all:
 source=lambda wc, input: pathlib.PurePosixPath(input.source).relative_to(OUTD),
 
 rule archive:
-    input: FOOTPRINT
+    input: FOOTPRINT, GLOBAL_HFP_DIFF
     output: ARCHIVE
     params:
         target=OUTD / 'data'
