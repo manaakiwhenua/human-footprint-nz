@@ -129,6 +129,10 @@ F = \begin{cases} 0 & \text{if $x \ge 15000$} \\
 4\cdot\exp(-1\cdot x) & \text{otherwise} \end{cases}
 $$
 
+### Final human footprint index
+
+All eight components are combined additvely. The New Zealand coastline (1:50,000 scale) is re-used in this final step in order to firmly set no-data values for marine spaces. Outside of marine areas, the minimum value is 0. This results in a raster layer where all terrestrial spaces have a minimum value of 0 (wilderness) up to a hypothetical maximum of 61. The datatype is 32-bit floating-point, rather than an integer, because some components use logarithmic or exponential functions and the values are not rounded.
+
 ## Reproducibility
 
 The Snakemake workflow management system is used to create a reproducible and scalable data analysis [[20]](#20). This entails a description of all required software, and ultimate sources of input data, that is required to reproduce these results. The workflow is intended to be transferrable to other machines, and adapted if desired. The source code developed to implement this dataset is available on Github [[21]](#21).
@@ -174,7 +178,7 @@ https://data.linz.govt.nz/layer/50329-nz-road-centrelines-topo-150k/
 https://data.linz.govt.nz/layer/50100-nz-chatham-island-road-centrelines-topo-150k/
 
 <a id="13">[13]</a>
-https://github.com/koordinates/kart
+Kart contributors (2023). Kart geospatial data version-control software. https://kartproject.org 
 
 <a id="14">[14]</a>
 https://data.linz.govt.nz/layer/50319-nz-railway-centrelines-topo-150k/
