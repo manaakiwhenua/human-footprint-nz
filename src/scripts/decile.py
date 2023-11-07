@@ -49,7 +49,7 @@ def trim_zeros(filt: np.ndarray, trim='fb') -> np.ndarray:
     return filt[i:j]
 
 def calculate_deciles(data: np.ndarray) -> np.ndarray:
-    deciles = np.quantile(
+    deciles = np.percentile(
         trim_zeros(np.sort(data.flatten(), axis=0, kind='stable'), trim='f'),
         np.arange(10, 100, 10),
         method='closest_observation'
