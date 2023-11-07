@@ -22,7 +22,7 @@ NZ_COAST_RASTER = OUTD / 'data/downloads/nz-coastlines-and-islands-polygons-topo
 TARGET_YEARS = ['2012', '2018']
 
 FOOTPRINT = OUTD / 'data/footprints/output/human_footprint_nz-{year}.tif'
-ARCHIVE = OUTD / 'archival/human_footrint.archive.{year}.zip'
+ARCHIVE = OUTD / 'archival/human_footrint.archive.zip'
 
 include: "rules/lcdb.smk"
 include: "rules/worldpop.smk"
@@ -42,7 +42,7 @@ rule all:
 source=lambda wc, input: pathlib.PurePosixPath(input.source).relative_to(OUTD),
 
 rule archive:
-    input: FOOTPRINT, GLOBAL_HFP_DIFF
+    input: expand(FOOTPRINT, year=TARGET_YEARS), expand(GLOBAL_HFP_DIFF, year=TARGET_YEARS)
     output: ARCHIVE
     params:
         target=OUTD / 'data'
@@ -50,6 +50,7 @@ rule archive:
         mkdir -p $(dirname {output})
         zip -r {output} {params.target}
     '''
+
 rule download_nz_coastlines_and_islands_polygon:
     output: NZ_COAST_VECTOR
     threads: 2
@@ -89,15 +90,16 @@ rule rasterise_nz_coastlines_and_islands_polygon:
         '''
 
 rule summation:
-    input: NZ_COAST_RASTER, WORLDPOP_FOOTPRINT_NZ, GHS_FOOTPRINT, VNL_FOOTPRINT, PASTURE_FOOTPRINT, CROPLAND_FOOTPRINT, ROADS_FOOTPRINT, RAIL_FOOTPRINT, NAVIGABLE_WATER_FOOTPRINT
+    input: NZ_COAST_RASTER, WORLDPOP_FOOTPRINT_NZ, VNL_FOOTPRINT, GHS_FOOTPRINT, CROPLAND_FOOTPRINT, PASTURE_FOOTPRINT, ROADS_FOOTPRINT, RAIL_FOOTPRINT, NAVIGABLE_WATER_FOOTPRINT
     output: FOOTPRINT
     conda: './envs/gdal.yml'
     log: LOGD / 'summation-{year}.log'
     params:
         tmp=TMPD,
-        max_value=10+10+10+7+4+8+8+4, # Maximum hypothetical value
+        max_value=50, # Maximum hypothetical value
         input_layers_calc=lambda wildcards, input: ' '.join(map(lambda x: f'-{x[0]} {x[1]}.vrt', zip(list(string.ascii_uppercase[:len(input)]), input))),
-        input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)]),
+        # input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)]),
+        input_calc='B+C+((D*(D>0))|(E*(E>0))|(F*(F>0)))+G+H+I',
         creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
     shell: '''
         mkdir -p $(dirname {output})
@@ -107,7 +109,7 @@ rule summation:
         gdal_calc.py {params.input_layers_calc} --calc="(A==0)*-1+(A==1)*({params.input_calc})" --extent=union \
             --outfile {params.tmp}/$(basename {output}) --overwrite \
             {params.creation_options} --NoDataValue=-1
-        gdal_calc.py -A {params.tmp}/$(basename {output}) -B {input[0]} --calc="where(logical_and(A>{params.max_value},B==1),0,A)" \
+        gdal_calc.py -A {params.tmp}/$(basename {output}) -B {input[0]} --calc="where(logical_and(A>{params.max_value},B==1),{params.max_value},A)" \
             --outfile {output} --overwrite \
             {params.creation_options} --hideNoData --NoDataValue=-1
         gdal_edit.py -stats {output}

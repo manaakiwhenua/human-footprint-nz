@@ -1,6 +1,8 @@
 """
 Convert a numerical raster into a 1-10 scale, on the basis of ten equal quantiles.
 0 and NaN are excluded from the quantile calculation, and retained in the output.
+Quantiles can be calculated on the basis of a different raster than the one used
+for classification, e.g. a baseline year.
 """
 
 from concurrent.futures import ThreadPoolExecutor
@@ -47,20 +49,23 @@ def trim_zeros(filt: np.ndarray, trim='fb') -> np.ndarray:
     return filt[i:j]
 
 def calculate_deciles(data: np.ndarray) -> np.ndarray:
-    return np.percentile(
+    deciles = np.quantile(
         trim_zeros(np.sort(data.flatten(), axis=0, kind='stable'), trim='f'),
-        np.arange(10, 100, 10)
+        np.arange(10, 100, 10),
+        method='closest_observation'
     )
+    return np.insert(deciles, 0, 0) # Add the bottom value
 
 def main(workers=smk.threads):
 
-    with rio.open(smk.input[0]) as ds:
+    baseline = Path(smk.input['baseline'][0])
+    target = Path(smk.input['night_light'])
+    with rio.open(baseline) as ds:
         deciles : np.narray = calculate_deciles(ds.read(1, masked=False))
-    deciles = np.insert(deciles, 0, 0)
     logging.info(deciles)
 
-    logging.info(f"Opening {smk.input[0]} for reading")
-    with rio.open(smk.input[0]) as src:
+    logging.info(f"Opening {target} for reading")
+    with rio.open(target) as src:
         # Create a destination dataset based on source params. The
         # destination will be tiled, and we'll process the tiles
         # concurrently.

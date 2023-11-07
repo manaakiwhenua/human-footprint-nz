@@ -49,7 +49,9 @@ We used the land cover information from the Landcover Database version 5.0 for t
 The data is downloaded as a vector, rasterised as a binary raster at 10 m² resolution, and then downsampled to 100 m² with a summation algorithm to obtain a 0–100 value for measuring partial pixel cover at this scale (a value of 20 indicates that 20% of the pixel is covered in cropland or forestry). These values are converted to a footprint score using the equation:
 
 $$
-F = \frac{x}{100}\cdot4
+F = \begin{cases} 7 & \text{if $x > 20$} \\
+4 & \text{if $0 < x \le 20$} \\
+0 & \text{otherwise} \end{cases}
 $$
 
 ### Pasture
@@ -59,9 +61,7 @@ Pasture data is obtained similarly to croplands. Classes 2 (urban parkland/open 
 The cover values are obtained in the same fashion as cropland and are converted to a footprint score using the rule:
 
 $$
-F = \begin{cases} 7 & \text{if $x > 20$} \\
-4 & \text{if $0 < x \le 20$} \\
-0 & \text{otherwise} \end{cases}
+F = \frac{x}{100}\cdot4
 $$
 
 ### Roads
@@ -131,7 +131,11 @@ $$
 
 ### Final human footprint index
 
-All eight components are combined additvely. The New Zealand coastline (1:50,000 scale) is re-used in this final step in order to firmly set no-data values for marine spaces. Outside of marine areas, the minimum value is 0. This results in a raster layer where all terrestrial spaces have a minimum value of 0 (wilderness) up to a hypothetical maximum of 61. The datatype is 32-bit floating-point, rather than an integer, because some components use logarithmic or exponential functions and the values are not rounded.
+All eight components are combined additvely.
+
+The New Zealand coastline (1:50,000 scale) is re-used in this final step in order to firmly set no-data values for marine spaces. Outside of marine areas, the minimum value is 0. This results in a raster layer where all terrestrial spaces have a minimum value of 0 (wilderness) up to a hypothetical maximum of 50. Following [[19]](#19), urban, cropland, and pasture follow a "land-use exclusion principle" whereby the three types may not co-occur. Although the individual footprint values are calculated independently, at the combination stage the first non-zero value among urban, cropland, and wilderness footprint components is taken, in that order. (If this were not the case, and summation was performed naïvely, the hypothetical maximum value would be 61.)
+
+The output datatype is 32-bit floating-point, rather than an integer, because some components use logarithmic or exponetnial functions and the values are not rounded.
 
 ## Reproducibility
 

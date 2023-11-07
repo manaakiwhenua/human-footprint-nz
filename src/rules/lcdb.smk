@@ -101,6 +101,6 @@ rule footprint_pasture:
         creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred2'].items())
     shell: '''
         mkdir -p $(dirname {output})
-        gdal_calc.py --outfile={output} -A {input} --calc="A/100.0*4" --overwrite {params.creation_options}
+        gdal_calc.py --type Float32 --outfile={output} -A {input} --calc="A/100.0*4" --overwrite {params.creation_options}
         gdal_edit.py -stats -a_srs EPSG:3851 {output}
         '''

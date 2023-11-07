@@ -17,12 +17,14 @@ VNL_URLS = {
     2012: 'https://eogdata.mines.edu/nighttime_light/annual/v21/2012/VNL_v21_npp_201204-201212_global_vcmcfg_c202205302300.median_masked.dat.tif.gz',
 }
 
+DECILE_BASELINE_YEAR = 2012
+
 VNL_YEARS = list(map(str, VNL_URLS.keys()))
 
 # Median monthly radiance, nW/cm^2/sr
-# NB output is scaled 0-255 (Byte) over New Zealand to make computation of deciles computationally easier for the Human Footprint index, 
-# and therefore is not actually in units of nW/cm^2/sr, but the intermediate data is retained if needed.
-# Since Human Footpring mapping is using VNL data for the computation of deciles, this conversion does not result in lost information. 
+# NB output is scaled to 0-65535 (UInt16) over New Zealand to make computation of deciles computationally easier for the Human Footprint index,
+# and therefore is not actually in units of nW/cm^2/sr, but the original (clipped, floating point) data is retained if needed.
+# Since the Human Footprint index converts VNL data into deciles, this conversion does not result in lost information,
 rule download_project_clip_vnl:
     output: VNL
     wildcard_constraints:
@@ -30,7 +32,8 @@ rule download_project_clip_vnl:
     params:
         url=lambda wildcards: VNL_URLS[get_nearest(VNL_URLS, wildcards.year)],
         extent=config['extent'],
-        creation_options=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
+        creation_options=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items()),
+        scale_max=1000 # nW/cm^2/sr
     conda: '../envs/gdal.yml'
     log: LOGD / "download_project_clip_vnl_{year}.log"
     shell: '''
@@ -42,19 +45,18 @@ rule download_project_clip_vnl:
             -multi -wo NUM_THREADS=ALL_CPUS \
             {output}.4326.tif {output}.unscaled.tif
         gdal_edit.py -stats {output}.unscaled.tif
-        gdal_translate -ot Byte -scale {output}.unscaled.tif {output}
+        gdal_translate -ot Uint16 -scale 0 {params.scale_max} 0 65535 {output}.unscaled.tif {output}
         gdal_edit.py -stats {output}
     '''
 
-# NB perform "gdalinfo -hist {output}" to verify that the output is in 10 approximately equal bins (excluding 0).
-# The result won't have exactly bins: values stradling the edge aren't distributed evenly between boundary values,
-# Yet, for 2020, each class 1-10 has between 131,825 to 131,859 pixels, and the remaining 1,004,044,827 pixels are 0.
 rule footprint_vnl:
-    input: VNL
+    input:
+        night_light=VNL,
+        baseline=expand(VNL, year=[DECILE_BASELINE_YEAR])
     output: VNL_FOOTPRINT
     log: LOGD / "footprint_vnl_{year}.log"
     threads: 5
     params:
-        logLevel='DEBUG'
+        logLevel='INFO'
     conda: '../envs/rasterio.yml'
     script: '../scripts/decile.py'
