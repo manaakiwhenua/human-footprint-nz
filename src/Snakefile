@@ -98,7 +98,6 @@ rule summation:
         tmp=TMPD,
         max_value=50, # Maximum hypothetical value
         input_layers_calc=lambda wildcards, input: ' '.join(map(lambda x: f'-{x[0]} {x[1]}.vrt', zip(list(string.ascii_uppercase[:len(input)]), input))),
-        # input_calc=lambda wildcards, input: '+'.join(list(string.ascii_uppercase)[1:len(input)]),
         input_calc='B+C+((D*(D>0))|(E*(E>0))|(F*(F>0)))+G+H+I',
         creation_options=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred3'].items())
     shell: '''
