@@ -35,8 +35,7 @@ include: "rules/comparison.smk"
 get_nearest = lambda options, candidate: min(options, key=lambda x: abs(int(x)-int(candidate)))
 
 rule all:
-    input:
-        expand(ARCHIVE, year=TARGET_YEARS)
+    input: ARCHIVE
 
 
 source=lambda wc, input: pathlib.PurePosixPath(input.source).relative_to(OUTD),

@@ -35,7 +35,7 @@ rule download_unzip_merge_jeodpp:
         year='\d{4}'
     params:
         urls=lambda wildcards: JEODPP_URLS[get_nearest(JEODPP_URLS, wildcards.year)],
-        res=lambda wildcards:  JEODPP_RESOLUTION[get_nearest(JEODPP_RESOLUTION, wildcards.year)],
+        res=lambda wildcards: JEODPP_RESOLUTION[get_nearest(JEODPP_RESOLUTION, wildcards.year)],
         extent=config['extent'],
         creation_options=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred2'].items())
     conda: '../envs/gdal.yml'
@@ -67,18 +67,20 @@ rule footprint_built:
         res=lambda wildcards: JEODPP_RESOLUTION[get_nearest(JEODPP_RESOLUTION, wildcards.year)],
         extent=config['extent'],
         creation_options_a=" ".join(f'-co {k}={v}' for k, v in config['compression_co']['zstd_pred2'].items()),
-        creation_options_b=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred2'].items())
+        creation_options_b=" ".join(f'--co {k}={v}' for k, v in config['compression_co']['zstd_pred2'].items()),
+        srcnodata=lambda wildcards: 255 if JEODPP_RESOLUTION[get_nearest(JEODPP_RESOLUTION, wildcards.year)] == 10 else 65535
     shell: '''
         mkdir -p $(dirname {output})
         if [ {params.res} -ne 100 ]; then
             gdalwarp -tr 100 100 -r sum -ot UInt16 \
             -te {params.extent} -overwrite {params.creation_options_a} \
             -multi -wo NUM_THREADS=ALL_CPUS \
+            -srcnodata {params.srcnodata} \
             {input} {input}.100.tif
         else
             cp {input} {input}.100.tif
         fi
-        gdal_calc.py --outfile={output} -A {input}.100.tif --calc="4*((A>0)&(A<=2000))+10*(A>2000)" --overwrite {params.creation_options_b}
-        gdal_edit.py -stats -a_srs EPSG:3851 {output}
-        rm {input}.100.tif
+        gdal_calc.py --outfile={output}.tmp.tif -A {input}.100.tif --calc="4*((A>0)&(A<=2000))+10*(A>2000)" --overwrite {params.creation_options_b} && rm {input}.100.tif
+        gdal_edit.py -stats -a_srs EPSG:3851 {output}.tmp.tif
+        gdalwarp -dstnodata 0 {output}.tmp.tif {output} && rm {output}.tmp.tif
     '''
