@@ -40,7 +40,7 @@ $$
 
 Annual composite night-time light data are obtained from the Earth Observation Group (EOG) at the Colorodo School of Mines, Annual VIIRS Nighttime lights (VNL) V2 [[7]](#7). Annual composition includes the removal of temporal lights (e.g. fires) and background values, and is ultimately derived from night-time data from the Visible Infrared Imaging Radiometer Suite (VIIRS) Day/Night Band (DNB) [[8]](#8).
 
-The units are median monthly radiance, in units of nW cm¯² sr¯¹. The data is clipped to the same New Zealand geogrpaphical area as the other component layers, and then scaled to a 0-255 range to facilitate the computation of deciles for the Human Footprint index. The boundaries of ten equal deciles are determined ignoring values of 0, and the decile (1 to 10), or 0, is directly used as the footprint score.
+The units are median monthly radiance, in units of nW cm¯² sr¯¹. The data is clipped to the same New Zealand geogrpaphical area as the other component layers, and then scaled to a 0-65535 range to facilitate the computation of deciles for the Human Footprint index. The boundaries of ten equal deciles are determined ignoring values of 0, and the decile (1 to 10), or 0, is directly used as the footprint score.
 
 ### Croplands (including forestry)
 
