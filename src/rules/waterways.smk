@@ -224,6 +224,7 @@ rule navigable_water_cost_distance_grass:
         rm -f {log}
         rm -f /{params.output}
         rm -f {params.tmp}/$(basename /{params.output})
+        export PROJ_DATA=/usr/share/proj
         grass -c /{params.cost} -e {params.grassdata}
         {params.grass_exe} r.in.gdal -e -k --verbose --overwrite input="/{params.cost}" output="$(basename -s .tif /{params.cost})" memory=2048
         {params.grass_exe} r.in.gdal -k --verbose --overwrite input="/{params.source}" output="$(basename -s .tif /{params.source})" memory=2048
