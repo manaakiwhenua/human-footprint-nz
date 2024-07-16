@@ -42,11 +42,11 @@ Annual composite night-time light data are obtained from the Earth Observation G
 
 The units are median monthly radiance, in units of nW cm¯² sr¯¹. The data is clipped to the same New Zealand geogrpaphical area as the other component layers, and then scaled to a 0-65535 range to facilitate the computation of deciles for the Human Footprint index. The boundaries of ten equal deciles are determined ignoring values of 0, and the decile (1 to 10), or 0, is directly used as the footprint score.
 
-### Croplands (including forestry)
+### Croplands
 
-We used the land cover information from the Landcover Database version 5.0 for the identification of croplands in 2012 and 2018 [[9]](#9) [[10]](#10). Specifically, classes 30 (short-rotation cropland), 33 (orchards, vineyards or other perennial crops), 64 (forest - harvested), and 71 (exotic forest). We decided to include exotic forest and harvested forests (typically bare ground from the harvesting of exotic forest) under the standard human footprint definition of "cropland" for the purpose of human footprint mapping in New Zealand. This is because exotic forests are a major class of land cover and represent a significant human alteration of the natural landscape.
+We used the land cover information from the Landcover Database version 5.0 for the identification of croplands in 2012 and 2018 [[9]](#9) [[10]](#10). Specifically, classes 30 (short-rotation cropland), and 33 (orchards, vineyards or other perennial crops).
 
-The data is downloaded as a vector, rasterised as a binary raster at 10 m² resolution, and then downsampled to 100 m² with a summation algorithm to obtain a 0–100 value for measuring partial pixel cover at this scale (a value of 20 indicates that 20% of the pixel is covered in cropland or forestry). These values are converted to a footprint score using the equation:
+The data is downloaded as a vector, rasterised as a binary raster at 10 m² resolution, and then downsampled to 100 m² with a summation algorithm to obtain a 0–100 value for measuring partial pixel cover at this scale (a value of 20 indicates that 20% of the pixel is covered in cropland). These values are converted to a footprint score using the equation:
 
 $$
 F = \begin{cases} 7 & \text{if $x > 20$} \\

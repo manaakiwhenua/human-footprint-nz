@@ -9,7 +9,7 @@ Implementation of https://www.nature.com/articles/s41597-022-01284-8 for New Zea
 - [x] Built environments
 - [x] Population density
 - [x] Night-time lights
-- [x] Crop land (_including forestry_)
+- [x] Crop land
 - [x] Pasture land
 - [x] Roads
 - [x] Railways

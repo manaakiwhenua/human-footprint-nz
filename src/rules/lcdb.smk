@@ -12,7 +12,6 @@ rule download_cropland:
     output: CROPLAND
     wildcard_constraints:
         year='\d{4}'
-    message: "Note that 'Exotic Forest' and 'Forest - Harvested' (LCDB classes) are included in our definition of 'cropland'"
     threads: 2
     conda: '../envs/gdal.yml'
     log: LOGD / "download_cropland_{{year}}.log"
@@ -25,7 +24,7 @@ rule download_cropland:
         nln="cropland",
         nlt="multipolygon",
         geom_var="geom",
-        where=lambda wildcards: f"\"Class_{get_nearest(LCDB_YEARS, wildcards.year)}\" IN (30, 33, 64, 71)"
+        where=lambda wildcards: f"\"Class_{get_nearest(LCDB_YEARS, wildcards.year)}\" IN (30, 33)"
     shell: '''
         mkdir -p $(dirname {params.tmp}/mainland/{output})
         ogr2ogr --config GDAL_HTTP_UNSAFESSL YES -f GPKG -t_srs EPSG:2193 -t_coord_epoch {wildcards.year}.0 {params.tmp}/mainland/{output} WFS:\"{params.host}/services;key={params.key}/wfs/{params.mainland_layer}\" {params.mainland_layer} -nln {params.nln} -nlt {params.nlt} -nlt PROMOTE_TO_MULTI -overwrite -lco GEOMETRY_NAME={params.geom_var} -skipfailures -where "{params.where}" -unsetFid
